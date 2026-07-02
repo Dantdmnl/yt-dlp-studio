@@ -1,6 +1,7 @@
 param(
     [switch]$Recreate,
-    [switch]$Shortcuts
+    [switch]$Shortcuts,
+    [switch]$NoPause
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +35,20 @@ function Stop-WithHelp {
     Write-Host ""
     Write-Host "If this keeps happening, run this command from the project folder:" -ForegroundColor Yellow
     Write-Host "  powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Recreate" -ForegroundColor Yellow
+    Wait-BeforeExit
     exit 1
+}
+
+function Wait-BeforeExit {
+    if ($NoPause) {
+        return
+    }
+    Write-Host ""
+    Write-Host "Press Enter to close this window..." -ForegroundColor DarkGray
+    try {
+        [void](Read-Host)
+    } catch {
+    }
 }
 
 function Test-Python {
@@ -199,6 +213,7 @@ try {
         Write-Host ""
         Write-Host "Optional: run .\install.ps1 -Shortcuts to add Desktop and Start Menu shortcuts." -ForegroundColor DarkGray
     }
+    Wait-BeforeExit
 } catch {
     Stop-WithHelp $_.Exception.Message
 }

@@ -35,7 +35,7 @@ If Not fso.FileExists(venvPython) Then
         WScript.Quit 0
     End If
 
-    command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & installScript & """"
+    command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & installScript & """ -NoPause"
     exitCode = shell.Run(command, 1, True)
     If exitCode <> 0 Or Not fso.FileExists(venvPython) Then
         MsgBox "Setup did not finish successfully." & vbCrLf & vbCrLf & _

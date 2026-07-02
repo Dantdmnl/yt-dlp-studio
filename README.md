@@ -34,7 +34,7 @@ Install packages and create Desktop/Start Menu shortcuts:
 .\install.ps1 -Shortcuts
 ```
 
-The installer prints each setup step, validates the project `.venv`, explains common failures, and tells you how to repair a stale environment with `-Recreate`.
+The installer prints each setup step, validates the project `.venv`, explains common failures, and tells you how to repair a stale environment with `-Recreate`. Manual runs pause before closing so the result stays visible; scripts and launchers can pass `-NoPause`.
 
 The helper creates `.venv` in this project and installs dependencies there, including yt-dlp's default extras and a bundled FFmpeg provider. Manual equivalent:
 

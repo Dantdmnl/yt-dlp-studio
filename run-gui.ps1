@@ -44,7 +44,7 @@ if (-not (Test-Path $venvPython)) {
     }
 
     Write-LaunchStep "Project virtual environment not found. Running setup first."
-    & $installer
+    & $installer -NoPause
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $venvPython)) {
         Show-LaunchError "Setup did not finish successfully. Open PowerShell in the app folder and run:`n`n.\install.ps1 -Recreate"
         exit 1
