@@ -24,6 +24,11 @@ except ImportError:  # pragma: no cover - only relevant on stripped Python build
     tkfont = None
     ttk = None
 
+try:
+    import ttkbootstrap as tb
+except ImportError:  # pragma: no cover - optional visual polish dependency
+    tb = None
+
 
 APP_NAME = "yt-dlp Studio"
 APP_VERSION = "0.1.0"
@@ -788,8 +793,8 @@ class StudioApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(f"{APP_NAME} {APP_VERSION}")
-        self.minsize(1060, 720)
-        self.geometry("1160x760")
+        self.minsize(1100, 760)
+        self.geometry("1180x800")
         self.settings = load_settings()
         self.jobs: queue.Queue[DownloadJob] = queue.Queue()
         self.log_queue: queue.Queue[str] = queue.Queue()
@@ -808,6 +813,8 @@ class StudioApp(tk.Tk):
         self.apply_matched_sync_field()
         environment = check_environment()
         self.environment_var.set(self._environment_summary(environment))
+        if any("missing" in message.casefold() for message in environment):
+            self.environment_label.configure(style="WarningBadge.TLabel")
         self._append_log("Environment:\n" + "\n".join(environment) + "\n\n")
         self.scan_clipboard(auto=True)
         self._poll_log_queue()
@@ -816,27 +823,38 @@ class StudioApp(tk.Tk):
         self.bind("<Control-v>", lambda _event: self.scan_clipboard(auto=False))
 
     def _configure_style(self) -> None:
-        self.configure(background="#f3f4f6")
+        self.configure(background="#eef2f7")
         default_font = tkfont.Font(family="Segoe UI", size=10)
-        title_font = tkfont.Font(family="Segoe UI", size=15, weight="bold")
+        title_font = tkfont.Font(family="Segoe UI", size=18, weight="bold")
+        subtitle_font = tkfont.Font(family="Segoe UI", size=10)
         section_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
         self.option_add("*Font", default_font)
-        style = ttk.Style(self)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure("TFrame", background="#f3f4f6")
+        if tb:
+            style = tb.Style("flatly")
+        else:
+            style = ttk.Style(self)
+            try:
+                style.theme_use("clam")
+            except tk.TclError:
+                pass
+        self._style = style
+        self.primary_button_style = "primary.TButton" if tb else "Accent.TButton"
+        self.secondary_button_style = "secondary.TButton" if tb else "TButton"
+        self.danger_button_style = "danger.TButton" if tb else "TButton"
+
+        style.configure("TFrame", background="#eef2f7")
         style.configure("Surface.TFrame", background="#ffffff")
-        style.configure("TLabel", background="#f3f4f6", foreground="#111827")
+        style.configure("TLabel", background="#eef2f7", foreground="#111827")
         style.configure("Surface.TLabel", background="#ffffff", foreground="#111827")
-        style.configure("Muted.TLabel", background="#ffffff", foreground="#6b7280")
+        style.configure("Muted.TLabel", background="#ffffff", foreground="#64748b", font=subtitle_font)
         style.configure("Title.TLabel", background="#ffffff", foreground="#111827", font=title_font)
-        style.configure("Badge.TLabel", background="#e0f2fe", foreground="#075985", padding=(8, 3))
-        style.configure("TLabelframe", background="#f3f4f6", bordercolor="#d1d5db", relief="solid")
-        style.configure("TLabelframe.Label", background="#f3f4f6", foreground="#374151", font=section_font)
-        style.configure("TButton", padding=(10, 6))
-        style.configure("Accent.TButton", padding=(12, 8), foreground="#ffffff", background="#2563eb")
+        style.configure("CardTitle.TLabel", background="#ffffff", foreground="#0f172a", font=section_font)
+        style.configure("Badge.TLabel", background="#dcfce7", foreground="#166534", padding=(10, 4))
+        style.configure("WarningBadge.TLabel", background="#fef3c7", foreground="#92400e", padding=(10, 4))
+        style.configure("TLabelframe", background="#eef2f7", bordercolor="#d6dde8", relief="solid")
+        style.configure("TLabelframe.Label", background="#eef2f7", foreground="#334155", font=section_font)
+        style.configure("TButton", padding=(10, 7))
+        style.configure("Accent.TButton", padding=(14, 9), foreground="#ffffff", background="#2563eb")
         style.map("Accent.TButton", background=[("active", "#1d4ed8"), ("pressed", "#1e40af")])
 
     def _environment_summary(self, messages: list[str]) -> str:
@@ -849,59 +867,73 @@ class StudioApp(tk.Tk):
         self.rowconfigure(2, weight=1)
 
         header = ttk.Frame(self, style="Surface.TFrame", padding=(14, 12))
-        header.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+        header.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 10))
         header.columnconfigure(0, weight=1)
-        ttk.Label(header, text=APP_NAME, style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text=f"{APP_NAME}", style="Title.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             header,
-            text="Download, sync, and review your music library without babysitting the terminal.",
+            text="Download, sync, and review music with yt-dlp while keeping local and NAS libraries tidy.",
             style="Muted.TLabel",
         ).grid(row=1, column=0, sticky="w", pady=(2, 0))
         self.environment_var = tk.StringVar(value="Checking environment...")
-        ttk.Label(header, textvariable=self.environment_var, style="Badge.TLabel").grid(row=0, column=1, rowspan=2, sticky="e")
+        header_actions = ttk.Frame(header, style="Surface.TFrame")
+        header_actions.grid(row=0, column=1, rowspan=2, sticky="e")
+        ttk.Label(header_actions, text=f"v{APP_VERSION}", style="Muted.TLabel").grid(row=0, column=0, sticky="e", padx=(0, 10))
+        self.environment_label = ttk.Label(header_actions, textvariable=self.environment_var, style="Badge.TLabel")
+        self.environment_label.grid(row=0, column=1, sticky="e")
+        ttk.Button(header_actions, text="Open Local Folder", command=self.open_output_dir).grid(row=0, column=2, sticky="e", padx=(10, 0))
 
-        toolbar = ttk.Frame(self, padding=(12, 10))
+        toolbar = ttk.Frame(self, padding=(16, 0))
         toolbar.grid(row=1, column=0, sticky="ew")
         toolbar.columnconfigure(0, weight=1)
 
-        intake = ttk.LabelFrame(toolbar, text="1. Links", padding=10)
+        intake = ttk.LabelFrame(toolbar, text="Capture Links", padding=12)
         intake.grid(row=0, column=0, sticky="ew")
         intake.columnconfigure(0, weight=1)
         self.clipboard_var = tk.StringVar(value="Copy a YouTube, playlist, or music link and it will appear here.")
         ttk.Label(intake, textvariable=self.clipboard_var).grid(row=0, column=0, columnspan=2, sticky="w")
-        self.url_listbox = tk.Listbox(intake, height=4, activestyle="none")
-        self.url_listbox.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        self.url_listbox = tk.Listbox(
+            intake,
+            height=3,
+            activestyle="none",
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            selectbackground="#2563eb",
+            selectforeground="#ffffff",
+        )
+        self.url_listbox.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         list_actions = ttk.Frame(intake)
-        list_actions.grid(row=1, column=1, sticky="ns", padx=(8, 0), pady=(6, 0))
+        list_actions.grid(row=1, column=1, sticky="ns", padx=(10, 0), pady=(8, 0))
         ttk.Button(list_actions, text="Add Clipboard", command=lambda: self.scan_clipboard(auto=False)).grid(row=0, column=0, sticky="ew")
         ttk.Button(list_actions, text="Remove", command=self.remove_selected_urls).grid(row=1, column=0, sticky="ew", pady=5)
         ttk.Button(list_actions, text="Clear", command=self.clear_urls).grid(row=2, column=0, sticky="ew")
 
         manual = ttk.Frame(intake)
-        manual.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        manual.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         manual.columnconfigure(0, weight=1)
-        self.url_text = tk.Text(manual, height=2, wrap="word")
+        self.url_text = tk.Text(manual, height=2, wrap="word", borderwidth=0, highlightthickness=1, highlightbackground="#cbd5e1")
         self.url_text.grid(row=0, column=0, sticky="ew")
         ttk.Button(manual, text="Add Typed Links", command=self.add_typed_urls).grid(row=0, column=1, sticky="ns", padx=(8, 0))
 
         buttons = ttk.Frame(toolbar)
         buttons.grid(row=0, column=1, sticky="n", padx=(10, 0))
-        ttk.Button(buttons, text="Start Download", style="Accent.TButton", command=self.add_job).grid(row=0, column=0, sticky="ew")
+        ttk.Button(buttons, text="Start Download", style=self.primary_button_style, command=self.add_job).grid(row=0, column=0, sticky="ew")
         ttk.Button(buttons, text="Preview Command", command=self.show_command).grid(row=1, column=0, sticky="ew", pady=6)
-        ttk.Button(buttons, text="Stop Current Job", command=self.cancel_current).grid(row=2, column=0, sticky="ew")
+        ttk.Button(buttons, text="Stop Current Job", style=self.danger_button_style, command=self.cancel_current).grid(row=2, column=0, sticky="ew")
 
         main = ttk.PanedWindow(self, orient="horizontal")
-        main.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 12))
+        main.grid(row=2, column=0, sticky="nsew", padx=16, pady=(12, 12))
 
-        left = ttk.Frame(main, padding=8)
-        right = ttk.Frame(main, padding=8)
+        left = ttk.Frame(main, padding=0)
+        right = ttk.Frame(main, padding=0)
         main.add(left, weight=1)
         main.add(right, weight=2)
 
         self._build_settings(left)
         self._build_log(right)
 
-        status = ttk.Frame(self, padding=(12, 0, 12, 10))
+        status = ttk.Frame(self, padding=(16, 0, 16, 12))
         status.grid(row=3, column=0, sticky="ew")
         status.columnconfigure(0, weight=1)
         self.status_var = tk.StringVar(value="Ready")
@@ -909,8 +941,6 @@ class StudioApp(tk.Tk):
         ttk.Button(status, text="Save Settings", command=self.save_from_ui).grid(row=0, column=1, sticky="e")
 
     def _build_settings(self, parent: ttk.Frame) -> None:
-        parent.columnconfigure(1, weight=1)
-
         self._vars = {
             "output_dir": tk.StringVar(),
             "output_subfolder": tk.StringVar(),
@@ -935,47 +965,69 @@ class StudioApp(tk.Tk):
             "extra_args": tk.StringVar(),
         }
 
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+        ttk.Label(parent, text="Settings", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
+
+        tabs = ttk.Notebook(parent)
+        tabs.grid(row=1, column=0, sticky="nsew")
+
+        format_tab = ttk.Frame(tabs, padding=12)
+        library_tab = ttk.Frame(tabs, padding=12)
+        sync_tab = ttk.Frame(tabs, padding=12)
+        cleanup_tab = ttk.Frame(tabs, padding=12)
+        advanced_tab = ttk.Frame(tabs, padding=12)
+        for tab in (format_tab, library_tab, sync_tab, cleanup_tab, advanced_tab):
+            tab.columnconfigure(1, weight=1)
+
+        tabs.add(format_tab, text="Format")
+        tabs.add(library_tab, text="Library")
+        tabs.add(sync_tab, text="Sync")
+        tabs.add(cleanup_tab, text="Cleanup")
+        tabs.add(advanced_tab, text="Advanced")
+
         row = 0
-        ttk.Label(parent, text="Mode").grid(row=row, column=0, sticky="w")
-        mode = ttk.Frame(parent)
+        ttk.Label(format_tab, text="Download mode").grid(row=row, column=0, sticky="w", pady=(0, 8))
+        mode = ttk.Frame(format_tab)
         mode.grid(row=row, column=1, sticky="ew")
         ttk.Radiobutton(mode, text="Audio", value="audio", variable=self._vars["mode"]).grid(row=0, column=0)
         ttk.Radiobutton(mode, text="Video", value="video", variable=self._vars["mode"]).grid(row=0, column=1, padx=10)
 
         row += 1
-        ttk.Label(parent, text="Audio preset").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Combobox(parent, textvariable=self._vars["audio_preset"], values=list(AUDIO_PRESETS), state="readonly").grid(
+        ttk.Label(format_tab, text="Audio preset").grid(row=row, column=0, sticky="w", pady=8)
+        ttk.Combobox(format_tab, textvariable=self._vars["audio_preset"], values=list(AUDIO_PRESETS), state="readonly").grid(
             row=row, column=1, sticky="ew", pady=6
         )
 
         row += 1
-        ttk.Label(parent, text="Video preset").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Combobox(parent, textvariable=self._vars["video_preset"], values=list(VIDEO_PRESETS), state="readonly").grid(
+        ttk.Label(format_tab, text="Video preset").grid(row=row, column=0, sticky="w", pady=8)
+        ttk.Combobox(format_tab, textvariable=self._vars["video_preset"], values=list(VIDEO_PRESETS), state="readonly").grid(
             row=row, column=1, sticky="ew", pady=6
         )
 
         row += 1
-        ttk.Label(parent, text="Local library").grid(row=row, column=0, sticky="w", pady=6)
-        output = ttk.Frame(parent)
+        ttk.Label(format_tab, text="Filename template").grid(row=row, column=0, sticky="w", pady=8)
+        ttk.Entry(format_tab, textvariable=self._vars["filename_template"]).grid(row=row, column=1, sticky="ew", pady=6)
+
+        row = 0
+        ttk.Label(library_tab, text="Local library").grid(row=row, column=0, sticky="w", pady=8)
+        output = ttk.Frame(library_tab)
         output.grid(row=row, column=1, sticky="ew", pady=6)
         output.columnconfigure(0, weight=1)
         ttk.Entry(output, textvariable=self._vars["output_dir"]).grid(row=0, column=0, sticky="ew")
         ttk.Button(output, text="Browse", command=self.browse_output).grid(row=0, column=1, padx=(6, 0))
+
         row += 1
-        ttk.Label(parent, text="Artist/project folder").grid(row=row, column=0, sticky="w", pady=(0, 6))
-        output_folder = ttk.Frame(parent)
+        ttk.Label(library_tab, text="Artist/project folder").grid(row=row, column=0, sticky="w", pady=8)
+        output_folder = ttk.Frame(library_tab)
         output_folder.grid(row=row, column=1, sticky="ew", pady=(0, 6))
         output_folder.columnconfigure(0, weight=1)
         ttk.Entry(output_folder, textvariable=self._vars["output_subfolder"]).grid(row=0, column=0, sticky="ew")
         ttk.Button(output_folder, text="Create & Use", command=self.apply_output_subfolder).grid(row=0, column=1, padx=(6, 0))
 
-        row += 1
-        ttk.Label(parent, text="Filename").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Entry(parent, textvariable=self._vars["filename_template"]).grid(row=row, column=1, sticky="ew", pady=6)
-
-        row += 1
-        ttk.Label(parent, text="Mirror to NAS/share").grid(row=row, column=0, sticky="w", pady=6)
-        sync = ttk.Frame(parent)
+        row = 0
+        ttk.Label(sync_tab, text="Mirror to NAS/share").grid(row=row, column=0, sticky="w", pady=8)
+        sync = ttk.Frame(sync_tab)
         sync.grid(row=row, column=1, sticky="ew", pady=6)
         sync.columnconfigure(1, weight=1)
         ttk.Checkbutton(sync, text="On", variable=self._vars["sync_enabled"]).grid(row=0, column=0, sticky="w")
@@ -984,17 +1036,15 @@ class StudioApp(tk.Tk):
         ttk.Checkbutton(sync, text="Follow the local artist/project folder", variable=self._vars["sync_match_output_folder"]).grid(
             row=1, column=1, sticky="w", padx=(6, 0), pady=(5, 0)
         )
+        ttk.Label(
+            sync_tab,
+            text="When enabled, downloads finish locally first and completed files are mirrored to the selected library root.",
+            style="Muted.TLabel",
+            wraplength=420,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        row += 1
-        ttk.Label(parent, text="Cookies").grid(row=row, column=0, sticky="w", pady=6)
-        cookies = ttk.Frame(parent)
-        cookies.grid(row=row, column=1, sticky="ew", pady=6)
-        cookies.columnconfigure(0, weight=1)
-        ttk.Entry(cookies, textvariable=self._vars["cookies_file"]).grid(row=0, column=0, sticky="ew")
-        ttk.Button(cookies, text="File", command=self.browse_cookies).grid(row=0, column=1, padx=(6, 0))
-
-        checks = ttk.LabelFrame(parent, text="Options", padding=8)
-        checks.grid(row=row + 1, column=0, columnspan=2, sticky="ew", pady=12)
+        checks = ttk.LabelFrame(format_tab, text="Download options", padding=10)
+        checks.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(14, 0))
         checks.columnconfigure(0, weight=1)
         options = [
             ("embed_thumbnail", "Embed thumbnail"),
@@ -1011,13 +1061,8 @@ class StudioApp(tk.Tk):
                 row=index // 2, column=index % 2, sticky="w", padx=4, pady=3
             )
 
-        row += 2
-        ttk.Label(parent, text="Extra args").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Entry(parent, textvariable=self._vars["extra_args"]).grid(row=row, column=1, sticky="ew", pady=6)
-
-        row += 1
-        dedupe = ttk.LabelFrame(parent, text="Library cleanup", padding=8)
-        dedupe.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        dedupe = ttk.LabelFrame(cleanup_tab, text="Duplicate review", padding=10)
+        dedupe.grid(row=0, column=0, columnspan=2, sticky="ew")
         dedupe.columnconfigure((0, 1), weight=1)
         ttk.Checkbutton(dedupe, text="Exact files only", variable=self._vars["dedupe_exact_only"]).grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 6)
@@ -1031,28 +1076,53 @@ class StudioApp(tk.Tk):
         ttk.Button(dedupe, text="Move to Review Folder", command=lambda: self.start_dedupe(apply=True)).grid(
             row=2, column=1, sticky="ew", padx=(5, 0)
         )
+        ttk.Label(
+            cleanup_tab,
+            text=f"Apply mode moves candidates to {DUPLICATE_REVIEW_DIR}; it does not delete files.",
+            style="Muted.TLabel",
+            wraplength=420,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
+        row = 0
+        ttk.Label(advanced_tab, text="Cookies file").grid(row=row, column=0, sticky="w", pady=8)
+        cookies = ttk.Frame(advanced_tab)
+        cookies.grid(row=row, column=1, sticky="ew", pady=6)
+        cookies.columnconfigure(0, weight=1)
+        ttk.Entry(cookies, textvariable=self._vars["cookies_file"]).grid(row=0, column=0, sticky="ew")
+        ttk.Button(cookies, text="File", command=self.browse_cookies).grid(row=0, column=1, padx=(6, 0))
 
         row += 1
-        actions = ttk.Frame(parent)
-        actions.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        actions.columnconfigure((0, 1), weight=1)
-        ttk.Button(actions, text="Scan Clipboard", command=lambda: self.scan_clipboard(auto=False)).grid(
-            row=0, column=0, sticky="ew", padx=(0, 5)
-        )
-        ttk.Button(actions, text="Open Local Folder", command=self.open_output_dir).grid(row=0, column=1, sticky="ew", padx=(5, 0))
+        ttk.Label(advanced_tab, text="Extra yt-dlp args").grid(row=row, column=0, sticky="w", pady=8)
+        ttk.Entry(advanced_tab, textvariable=self._vars["extra_args"]).grid(row=row, column=1, sticky="ew", pady=6)
 
     def _build_log(self, parent: ttk.Frame) -> None:
-        parent.rowconfigure(1, weight=1)
+        parent.rowconfigure(2, weight=1)
         parent.columnconfigure(0, weight=1)
         self.queue_var = tk.StringVar(value="Queue is empty")
-        top = ttk.Frame(parent)
-        top.grid(row=0, column=0, sticky="ew")
+        ttk.Label(parent, text="Activity", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
+        top = ttk.Frame(parent, padding=(0, 0, 0, 6))
+        top.grid(row=1, column=0, sticky="ew")
         top.columnconfigure(0, weight=1)
         ttk.Label(top, textvariable=self.queue_var).grid(row=0, column=0, sticky="w")
         ttk.Button(top, text="Copy Log", command=self.copy_log).grid(row=0, column=1, sticky="e", padx=(8, 0))
         ttk.Button(top, text="Clear Log", command=self.clear_log).grid(row=0, column=2, sticky="e", padx=(6, 0))
-        self.log = tk.Text(parent, wrap="word", state="disabled", background="#111827", foreground="#e5e7eb")
-        self.log.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
+
+        self.log = tk.Text(
+            parent,
+            wrap="word",
+            state="disabled",
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            background="#ffffff",
+            foreground="#0f172a",
+            insertbackground="#0f172a",
+            selectbackground="#2563eb",
+            padx=12,
+            pady=10,
+            font=("Consolas", 9),
+        )
+        self.log.grid(row=2, column=0, sticky="nsew")
 
     def _load_vars(self) -> None:
         for key, var in self._vars.items():

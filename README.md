@@ -6,7 +6,7 @@ Current app version: `0.1.0`
 
 ## Features
 
-- Tkinter GUI with automatic clipboard link detection, a download list, and live `yt-dlp` log output
+- Polished Tkinter/ttkbootstrap GUI with automatic clipboard link detection, tabbed settings, and live `yt-dlp` activity output
 - Audio presets for MP3, M4A, Opus, and FLAC
 - Video presets for best, 1080p, 720p, and small compatible MP4
 - Metadata, thumbnail embedding, subtitle downloads, cookies file support, SponsorBlock removal, and download archive support
@@ -28,6 +28,12 @@ Install the Python packages:
 .\install.ps1
 ```
 
+Install packages and create Desktop/Start Menu shortcuts:
+
+```powershell
+.\install.ps1 -Shortcuts
+```
+
 The helper creates `.venv` in this project and installs dependencies there, including yt-dlp's default extras and a bundled FFmpeg provider. Manual equivalent:
 
 ```powershell
@@ -41,11 +47,19 @@ For current YouTube downloads, yt-dlp also needs a JavaScript runtime. Deno is r
 
 ## Run The GUI
 
+Use the installed Start Menu/Desktop shortcut, or launch manually:
+
 ```powershell
 .\run-gui.ps1
 ```
 
-For a no-terminal launch, double-click:
+`run-gui.ps1` starts the app with `pythonw.exe`, so no terminal window stays open. For a debug/foreground launch:
+
+```powershell
+.\run-gui.ps1 -Foreground
+```
+
+You can also double-click the silent launcher:
 
 ```text
 yt-dlp-studio.vbs
@@ -57,15 +71,15 @@ Or directly:
 .\.venv\Scripts\python.exe .\ytdlp_wrapper.py
 ```
 
-Copy one or more YouTube, playlist, or music links. The app scans the clipboard and adds detected links to the list automatically. Choose audio or video settings, then click `Download Now`.
+Copy one or more YouTube, playlist, or music links. The app scans the clipboard and adds detected links to the list automatically. Choose audio or video settings, then click `Start Download`.
 
 You can still paste messy batches into the small manual box and click `Add Typed Links`.
 
-Use `Subfolder` to quickly create/select an artist or project folder under the current output path. For example, enter `Maphra` while output is `D:\Music` to switch output to `D:\Music\Maphra`.
+Use `Artist/project folder` to quickly create/select a folder under the current output path. For example, enter `Maphra` while output is `D:\Music` to switch output to `D:\Music\Maphra`.
 
 ## Release Package
 
-This project is designed to ship as a small source zip with the installer and launcher scripts included. A user can download the release zip, extract it, run `install.ps1`, then start the GUI with `run-gui.ps1` or `yt-dlp-studio.vbs`.
+This project is designed to ship as a small source zip with the installer and launcher scripts included. A user can download the release zip, extract it, run `install.ps1 -Shortcuts`, then start the GUI from the Start Menu, Desktop shortcut, `run-gui.ps1`, or `yt-dlp-studio.vbs`.
 
 Check the app version:
 

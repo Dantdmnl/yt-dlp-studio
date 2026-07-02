@@ -1,11 +1,13 @@
 param(
-    [switch]$Recreate
+    [switch]$Recreate,
+    [switch]$Shortcuts
 )
 
 $ErrorActionPreference = "Stop"
 
 $venv = Join-Path $PSScriptRoot ".venv"
 $venvPython = Join-Path $venv "Scripts\python.exe"
+$launcher = Join-Path $PSScriptRoot "yt-dlp-studio.vbs"
 
 function Test-Python {
     param([string]$Path)
@@ -67,6 +69,25 @@ function Find-BasePython {
     return $null
 }
 
+function New-AppShortcut {
+    param(
+        [string]$Path,
+        [string]$Target
+    )
+
+    $folder = Split-Path $Path -Parent
+    if (-not (Test-Path $folder)) {
+        New-Item -ItemType Directory -Path $folder | Out-Null
+    }
+
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($Path)
+    $shortcut.TargetPath = $Target
+    $shortcut.WorkingDirectory = $PSScriptRoot
+    $shortcut.Description = "Launch yt-dlp Studio"
+    $shortcut.Save()
+}
+
 if ((Test-Path $venv) -and ($Recreate -or -not (Test-Venv))) {
     Write-Host "Existing .venv is broken. Recreating it..."
     Remove-Item -LiteralPath $venv -Recurse -Force
@@ -87,5 +108,17 @@ if (-not (Test-Venv)) {
 
 & $venvPython -m pip install --upgrade pip
 & $venvPython -m pip install -r "$PSScriptRoot\requirements.txt"
+
+if ($Shortcuts) {
+    if (-not (Test-Path $launcher)) {
+        Write-Error "Launcher not found: $launcher"
+    }
+
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    $startMenu = Join-Path ([Environment]::GetFolderPath("Programs")) "yt-dlp Studio"
+    New-AppShortcut -Path (Join-Path $desktop "yt-dlp Studio.lnk") -Target $launcher
+    New-AppShortcut -Path (Join-Path $startMenu "yt-dlp Studio.lnk") -Target $launcher
+    Write-Host "Shortcuts created on Desktop and in the Start Menu."
+}
 
 Write-Host "Installed into $venv"

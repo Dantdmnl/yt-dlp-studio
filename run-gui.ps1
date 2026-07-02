@@ -1,4 +1,9 @@
+param(
+    [switch]$Foreground
+)
+
 $ErrorActionPreference = "Stop"
+Set-Location -LiteralPath $PSScriptRoot
 
 $venvPython = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 $venvPythonw = Join-Path $PSScriptRoot ".venv\Scripts\pythonw.exe"
@@ -11,7 +16,9 @@ if (-not (Test-Path $venvPython)) {
 
 $appArgument = "`"$appScript`""
 
-if (Test-Path $venvPythonw) {
+if ($Foreground) {
+    & $venvPython $appScript
+} elseif (Test-Path $venvPythonw) {
     Start-Process -FilePath $venvPythonw -ArgumentList $appArgument -WindowStyle Hidden
 } else {
     Start-Process -FilePath $venvPython -ArgumentList $appArgument -WindowStyle Hidden
