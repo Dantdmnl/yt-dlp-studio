@@ -847,6 +847,7 @@ class StudioApp(tk.Tk):
         style.configure("TLabel", background="#eef2f7", foreground="#111827")
         style.configure("Surface.TLabel", background="#ffffff", foreground="#111827")
         style.configure("Muted.TLabel", background="#ffffff", foreground="#64748b", font=subtitle_font)
+        style.configure("PanelMuted.TLabel", background="#eef2f7", foreground="#64748b", font=subtitle_font)
         style.configure("Title.TLabel", background="#ffffff", foreground="#111827", font=title_font)
         style.configure("CardTitle.TLabel", background="#ffffff", foreground="#0f172a", font=section_font)
         style.configure("Badge.TLabel", background="#dcfce7", foreground="#166534", padding=(10, 4))
@@ -969,22 +970,22 @@ class StudioApp(tk.Tk):
         parent.rowconfigure(1, weight=1)
         ttk.Label(parent, text="Settings", style="CardTitle.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 8))
 
-        tabs = ttk.Notebook(parent)
-        tabs.grid(row=1, column=0, sticky="nsew")
+        self.settings_tabs = ttk.Notebook(parent)
+        self.settings_tabs.grid(row=1, column=0, sticky="nsew")
 
-        format_tab = ttk.Frame(tabs, padding=12)
-        library_tab = ttk.Frame(tabs, padding=12)
-        sync_tab = ttk.Frame(tabs, padding=12)
-        cleanup_tab = ttk.Frame(tabs, padding=12)
-        advanced_tab = ttk.Frame(tabs, padding=12)
+        format_tab = ttk.Frame(self.settings_tabs, padding=12)
+        library_tab = ttk.Frame(self.settings_tabs, padding=12)
+        sync_tab = ttk.Frame(self.settings_tabs, padding=12)
+        cleanup_tab = ttk.Frame(self.settings_tabs, padding=12)
+        advanced_tab = ttk.Frame(self.settings_tabs, padding=12)
         for tab in (format_tab, library_tab, sync_tab, cleanup_tab, advanced_tab):
             tab.columnconfigure(1, weight=1)
 
-        tabs.add(format_tab, text="Format")
-        tabs.add(library_tab, text="Library")
-        tabs.add(sync_tab, text="Sync")
-        tabs.add(cleanup_tab, text="Cleanup")
-        tabs.add(advanced_tab, text="Advanced")
+        self.settings_tabs.add(format_tab, text="Format")
+        self.settings_tabs.add(library_tab, text="Library")
+        self.settings_tabs.add(sync_tab, text="Sync")
+        self.settings_tabs.add(cleanup_tab, text="Cleanup")
+        self.settings_tabs.add(advanced_tab, text="Advanced")
 
         row = 0
         ttk.Label(format_tab, text="Download mode").grid(row=row, column=0, sticky="w", pady=(0, 8))
@@ -1025,23 +1026,36 @@ class StudioApp(tk.Tk):
         ttk.Entry(output_folder, textvariable=self._vars["output_subfolder"]).grid(row=0, column=0, sticky="ew")
         ttk.Button(output_folder, text="Create & Use", command=self.apply_output_subfolder).grid(row=0, column=1, padx=(6, 0))
 
+        sync_tab.columnconfigure(0, weight=1)
         row = 0
-        ttk.Label(sync_tab, text="Mirror to NAS/share").grid(row=row, column=0, sticky="w", pady=8)
-        sync = ttk.Frame(sync_tab)
-        sync.grid(row=row, column=1, sticky="ew", pady=6)
-        sync.columnconfigure(1, weight=1)
-        ttk.Checkbutton(sync, text="On", variable=self._vars["sync_enabled"]).grid(row=0, column=0, sticky="w")
-        ttk.Entry(sync, textvariable=self._vars["sync_dir"]).grid(row=0, column=1, sticky="ew", padx=(6, 0))
-        ttk.Button(sync, text="Browse", command=self.browse_sync).grid(row=0, column=2, padx=(6, 0))
-        ttk.Checkbutton(sync, text="Follow the local artist/project folder", variable=self._vars["sync_match_output_folder"]).grid(
-            row=1, column=1, sticky="w", padx=(6, 0), pady=(5, 0)
-        )
+        ttk.Checkbutton(
+            sync_tab,
+            text="Mirror completed downloads to a second library",
+            variable=self._vars["sync_enabled"],
+        ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 12))
+
+        row += 1
+        ttk.Label(sync_tab, text="Library root").grid(row=row, column=0, sticky="w", pady=(0, 6))
+        sync_target = ttk.Frame(sync_tab)
+        sync_target.grid(row=row, column=1, sticky="ew", pady=(0, 6))
+        sync_target.columnconfigure(0, weight=1)
+        ttk.Entry(sync_target, textvariable=self._vars["sync_dir"]).grid(row=0, column=0, sticky="ew")
+        ttk.Button(sync_target, text="Browse", command=self.browse_sync).grid(row=0, column=1, padx=(8, 0))
+
+        row += 1
+        ttk.Checkbutton(
+            sync_tab,
+            text="Follow the local artist/project folder",
+            variable=self._vars["sync_match_output_folder"],
+        ).grid(row=row, column=1, sticky="w", pady=(4, 0))
+
+        row += 1
         ttk.Label(
             sync_tab,
             text="When enabled, downloads finish locally first and completed files are mirrored to the selected library root.",
-            style="Muted.TLabel",
+            style="PanelMuted.TLabel",
             wraplength=420,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(14, 0))
 
         checks = ttk.LabelFrame(format_tab, text="Download options", padding=10)
         checks.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(14, 0))
