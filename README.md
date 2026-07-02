@@ -79,7 +79,7 @@ Copy one or more YouTube, playlist, or music links. The app scans the clipboard 
 
 You can still paste messy batches into the small manual box and click `Add Typed Links`.
 
-Use `Artist/project folder` to quickly create/select a folder under the current output path. For example, enter `Maphra` while output is `D:\Music` to switch output to `D:\Music\Maphra`.
+Use `Artist/project folder` to quickly create/select a folder under the current output path. For example, enter `ArtistName` while output is `D:\Music` to switch output to `D:\Music\ArtistName`.
 
 ## Release Package
 
@@ -113,12 +113,12 @@ Download locally, then sync completed files to a NAS/share:
 .\.venv\Scripts\python.exe .\ytdlp_wrapper.py --audio --sync-dir "\\NAS\Media\Music" "https://example.com/watch?v=..."
 ```
 
-By default, sync treats `--sync-dir` as a library root and creates a matching output folder. If local output is `D:\Music\Maphra`, the example above syncs to `\\NAS\Media\Music\Maphra`.
+By default, sync treats `--sync-dir` as a library root and creates a matching output folder. If local output is `D:\Music\ArtistName`, the example above syncs to `\\NAS\Media\Music\ArtistName`.
 
 Copy directly into the sync folder instead:
 
 ```powershell
-.\.venv\Scripts\python.exe .\ytdlp_wrapper.py --audio --sync-dir "\\NAS\Media\Music\Maphra" --sync-flat "https://example.com/watch?v=..."
+.\.venv\Scripts\python.exe .\ytdlp_wrapper.py --audio --sync-dir "\\NAS\Media\Music\ArtistName" --sync-flat "https://example.com/watch?v=..."
 ```
 
 Preview the generated command:
@@ -169,10 +169,10 @@ The app writes a `download-archive.txt` file in the output directory by default,
 
 Sync is optional. When enabled, downloads finish in the local output folder first, then completed files are copied to the sync target. Temporary files such as `.part` downloads are skipped.
 
-When `Match output folder` is enabled, the sync target field follows the local output folder while preserving the path style you typed or selected. If the sync target points at an old sibling folder under the same library parent, such as `G:\Multimedia\Music\Maphra` while local output is `D:\Music\Halocene`, the app rewrites the sync field to `G:\Multimedia\Music\Halocene`.
+When `Match output folder` is enabled, the sync target field follows the local output folder while preserving the path style you typed or selected. If the sync target points at an old sibling folder under the same library parent, such as `G:\Multimedia\Music\OldArtist` while local output is `D:\Music\NewArtist`, the app rewrites the sync field to `G:\Multimedia\Music\NewArtist`.
 
 If a download fails after yt-dlp already fetched a thumbnail, the wrapper removes new orphan `.jpg`, `.png`, and `.webp` thumbnail files that do not have a matching media file.
 
-The download archive prevents repeated downloads of the same archived URL. It does not guarantee that a playlist cannot contain the same song from another URL, a reupload, or a file already present from another tool such as SpotDL.
+The download archive prevents repeated downloads of the same archived URL. It does not guarantee that a playlist cannot contain the same song from another URL, a reupload, or a file already present from another music downloader.
 
-The deduplicator scans all supported media files in the output folder, not only files downloaded by this wrapper. It uses audio metadata when available, then falls back to cleaned title candidates from filenames so mixed libraries can match entries such as a clean SpotDL title beside a longer YouTube title. Apply mode never deletes files directly; it moves duplicate candidates into `_duplicates_review` inside the output folder so you can inspect them before deleting anything. When sync is enabled and dedupe is applied with sync support, the matching file in the sync destination is moved to its own `_duplicates_review` folder as well.
+The deduplicator scans all supported media files in the output folder, not only files downloaded by this wrapper. It uses audio metadata when available, then falls back to cleaned title candidates from filenames so mixed libraries can match entries such as a clean track title beside a longer YouTube title. Apply mode never deletes files directly; it moves duplicate candidates into `_duplicates_review` inside the output folder so you can inspect them before deleting anything. When sync is enabled and dedupe is applied with sync support, the matching file in the sync destination is moved to its own `_duplicates_review` folder as well.
