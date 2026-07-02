@@ -34,6 +34,8 @@ Install packages and create Desktop/Start Menu shortcuts:
 .\install.ps1 -Shortcuts
 ```
 
+The installer prints each setup step, validates the project `.venv`, explains common failures, and tells you how to repair a stale environment with `-Recreate`.
+
 The helper creates `.venv` in this project and installs dependencies there, including yt-dlp's default extras and a bundled FFmpeg provider. Manual equivalent:
 
 ```powershell
@@ -64,6 +66,8 @@ You can also double-click the silent launcher:
 ```text
 yt-dlp-studio.vbs
 ```
+
+On first launch, the VBS launcher checks whether setup is complete. If `.venv` is missing, it asks before opening the visible installer; normal launches remain silent.
 
 Or directly:
 

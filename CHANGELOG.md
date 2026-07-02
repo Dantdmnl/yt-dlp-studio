@@ -8,4 +8,5 @@
 - Added optional sync to a second folder, including matched artist/project folders for NAS-style libraries.
 - Added duplicate review tooling for mixed yt-dlp and SpotDL-style music folders.
 - Added hidden-window launch scripts, foreground debug launch, and optional Desktop/Start Menu shortcuts.
+- Improved installer and launcher feedback, including first-run setup prompts and clearer repair guidance.
 - Added a GitHub release workflow that packages the app into a zip when a `v*` tag is pushed.
