@@ -12,7 +12,9 @@ permissions:
 jobs:
   utility:
     runs-on: windows-latest
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.10", "3.12"]
         requirements: [requirements.txt, requirements-spotify.txt]
@@ -26,8 +28,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\.venv\Scripts\python.exe -m pip install -r ${{ matrix.requirements }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\.venv\Scripts\python.exe -m pip check
       - name: Static checks
         run: .\.venv\Scripts\python.exe -m ruff check .
       - name: Install complete media tools
