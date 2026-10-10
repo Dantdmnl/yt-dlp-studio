@@ -34,6 +34,12 @@ Run Setup.cmd again and answer Yes to Spotify support, or enable installation fr
 
 Use a full `https://open.spotify.com/artist/...` link for artist preview/review. Shortened links can be submitted to the backend but are not supported by every preview feature. Failed/incomplete catalogue discovery should be retried, not treated as a complete discography. Upstream interfaces can change; do not share login cookies or credentials to work around them.
 
+The isolated Spotify downloader uses English YouTube Music searches to work around empty filtered results seen with spotDL's default German client. It retains native spotDL recording selection rather than accepting arbitrary first search results. See the related [upstream failure report](https://github.com/spotDL/spotify-downloader/issues/2779). A successful match still does not guarantee audio extraction or availability.
+
+Open Details for the underlying yt-dlp warning/error, not just the generic spotDL message. Failure reports persist under `%APPDATA%\ytdlp-studio\reports`; Retry Selected uses known failed track links. Completed, valid audio from partial albums is mirrored without falsely marking the album successful. Reports contain private paths and links; redact them before sharing. Stop Downloads cancels the current process tree and queued jobs; Cancel Queued only clears pending jobs.
+
+Launchers, nested FFmpeg/runtime children and Spotify discovery's dependency shell calls are hidden during normal use. Close and reopen an already running app after updating source files so it uses the new helper policy. Foreground launching remains available for diagnostics. Direct artist downloads should show a Discovering row followed by individual release rows, with separate pending and active counts, not one long-running artist row with zero queued jobs.
+
 ## Mirror Is Unavailable
 
 Open the destination in File Explorer and verify your Windows account can create files there. Check the selected root and folder-matching option. Completed local downloads remain available if the NAS is offline. Retry mirroring once the share is reachable.

@@ -57,6 +57,9 @@ with patch.object(core, 'load_settings', return_value=settings), \\
     app.withdraw()
     app.update()
     assert app.simple_format_var.get() == 'MP3'
+    assert app.simple_one_folder.winfo_exists()
+    app.simple_one_folder.invoke()
+    assert not app._settings_from_ui().spotify_album_folders
     app.destroy()
 print('Extracted source GUI initialized successfully')
 """

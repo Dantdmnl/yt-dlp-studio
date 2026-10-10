@@ -17,6 +17,7 @@ from tkinter import filedialog, font as tkfont, messagebox, ttk
 from . import backend as core
 from .formats import choices_for, selection_for
 from .inspection import PreviewController, preview_summary
+from .processes import hide_child_windows
 
 try:
     import ttkbootstrap as tb
@@ -26,6 +27,7 @@ except ImportError:
 
 class StudioApp(tk.Tk):
     def __init__(self) -> None:
+        hide_child_windows()
         super().__init__()
         self.title(f"{core.APP_NAME} {core.APP_VERSION}")
         self.minsize(1100, 800)
@@ -35,6 +37,10 @@ class StudioApp(tk.Tk):
         self.log_queue: queue.Queue[str] = queue.Queue()
         self.worker: threading.Thread | None = None
         self.maintenance_worker: threading.Thread | None = None
+        self.preparation_worker: threading.Thread | None = None
+        self.preparation_cancel = threading.Event()
+        self.preparing = False
+        self.closing = False
         self.job_history: dict[str, core.DownloadJob] = {}
         self.ui_events: queue.Queue[tuple] = queue.Queue()
         self.stop_event = threading.Event()
@@ -208,7 +214,7 @@ class StudioApp(tk.Tk):
         buttons.grid(row=0, column=1, sticky="n", padx=(10, 0))
         ttk.Button(buttons, text="Start Download", style=self.primary_button_style, command=self.add_job).grid(row=0, column=0, sticky="ew")
         ttk.Button(buttons, text="Preview Command", command=self.show_command).grid(row=1, column=0, sticky="ew", pady=6)
-        self.stop_button = ttk.Button(buttons, text="Stop Current Job", style=self.danger_button_style, command=self.cancel_current)
+        self.stop_button = ttk.Button(buttons, text="Stop Downloads", style=self.danger_button_style, command=self.cancel_current)
         self.stop_button.grid(row=2, column=0, sticky="ew")
 
         main = ttk.PanedWindow(self, orient="horizontal")
@@ -326,7 +332,13 @@ class StudioApp(tk.Tk):
         output_folder.columnconfigure(0, weight=1)
         ttk.Entry(output_folder, textvariable=self._vars["output_subfolder"]).grid(row=0, column=0, sticky="ew")
         ttk.Button(output_folder, text="Create & Use", command=self.apply_output_subfolder).grid(row=0, column=1, padx=(6, 0))
-        ttk.Checkbutton(library_tab, text="Artist downloads: album folders", variable=self._vars["spotify_album_folders"]).grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
+        ttk.Label(library_tab, text="Artist layout").grid(row=2, column=0, sticky="w", pady=10)
+        layout = ttk.Frame(library_tab)
+        layout.grid(row=2, column=1, sticky="w", pady=10)
+        self.library_album_folders = ttk.Radiobutton(layout, text="Album folders", variable=self._vars["spotify_album_folders"], value=True)
+        self.library_album_folders.grid(row=0, column=0)
+        self.library_one_folder = ttk.Radiobutton(layout, text="One folder", variable=self._vars["spotify_album_folders"], value=False)
+        self.library_one_folder.grid(row=0, column=1, padx=(12, 0))
         ttk.Checkbutton(library_tab, text="Artist downloads: include all editions", variable=self._vars["spotify_all_editions"]).grid(row=3, column=0, columnspan=2, sticky="w")
 
         sync_tab.columnconfigure(0, weight=1)
@@ -425,9 +437,12 @@ class StudioApp(tk.Tk):
         self.log_toolbar = top
         top.grid(row=1, column=0, sticky="ew")
         top.columnconfigure(0, weight=1)
-        ttk.Label(top, textvariable=self.queue_var).grid(row=0, column=0, sticky="w")
-        ttk.Button(top, text="Copy Log", command=self.copy_log).grid(row=0, column=1, sticky="e", padx=(8, 0))
-        ttk.Button(top, text="Clear Log", command=self.clear_log).grid(row=0, column=2, sticky="e", padx=(6, 0))
+        self.queue_summary_label = ttk.Label(top, textvariable=self.queue_var)
+        self.queue_summary_label.grid(row=0, column=0, sticky="w")
+        self.copy_log_button = ttk.Button(top, text="Copy Log", command=self.copy_log)
+        self.copy_log_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self.clear_log_button = ttk.Button(top, text="Clear Log", command=self.clear_log)
+        self.clear_log_button.grid(row=0, column=2, sticky="e", padx=(6, 0))
         jobs_panel = ttk.Frame(parent)
         self.jobs_panel = jobs_panel
         jobs_panel.grid(row=2, column=0, sticky="ew", pady=(0, 10))
@@ -443,7 +458,7 @@ class StudioApp(tk.Tk):
         job_actions = ttk.Frame(jobs_panel)
         job_actions.grid(row=1, column=0, sticky="e", pady=(6, 0))
         ttk.Button(job_actions, text="Retry Selected", command=self.retry_selected).grid(row=0, column=0)
-        ttk.Button(job_actions, text="Clear Pending", command=self.clear_pending).grid(row=0, column=1, padx=6)
+        ttk.Button(job_actions, text="Cancel Queued", command=self.clear_pending).grid(row=0, column=1, padx=6)
         ttk.Button(job_actions, text="Open Folder", command=self.open_job_folder).grid(row=0, column=2, padx=6)
         ttk.Button(job_actions, text="Remove Finished", command=self.remove_finished).grid(row=0, column=3)
 
@@ -530,16 +545,23 @@ class StudioApp(tk.Tk):
         ttk.Label(panel, text="Save to").grid(row=3, column=0, sticky="w")
         ttk.Entry(panel, textvariable=self._vars["output_dir"]).grid(row=3, column=1, sticky="ew", pady=6)
         ttk.Button(panel, text="Browse", command=self.browse_output).grid(row=3, column=2, padx=8)
+        ttk.Label(panel, text="Artist layout").grid(row=4, column=0, sticky="w")
+        layout = ttk.Frame(panel)
+        layout.grid(row=4, column=1, columnspan=3, sticky="w", pady=6)
+        self.simple_album_folders = ttk.Radiobutton(layout, text="Album folders", variable=self._vars["spotify_album_folders"], value=True)
+        self.simple_album_folders.grid(row=0, column=0)
+        self.simple_one_folder = ttk.Radiobutton(layout, text="One folder", variable=self._vars["spotify_album_folders"], value=False)
+        self.simple_one_folder.grid(row=0, column=1, padx=(12, 0))
         options = ttk.Frame(panel)
-        options.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        options.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         ttk.Checkbutton(options, text="SponsorBlock", variable=self._vars["sponsorblock"]).grid(row=0, column=0)
         ttk.Checkbutton(options, text="Mirror to NAS", variable=self._vars["sync_enabled"]).grid(row=0, column=1, padx=16)
         ttk.Checkbutton(options, text="Details", variable=self.details_var,
                         command=self.apply_view_mode).grid(row=0, column=2, padx=16)
-        self.simple_stop_button = ttk.Button(options, text="Stop Current Job", command=self.cancel_current)
+        self.simple_stop_button = ttk.Button(options, text="Stop Downloads", command=self.cancel_current)
         self.simple_stop_button.grid(row=0, column=3)
         self.simple_mirror_row = ttk.Frame(panel)
-        self.simple_mirror_row.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        self.simple_mirror_row.grid(row=6, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         self.simple_mirror_row.columnconfigure(0, minsize=80)
         self.simple_mirror_row.columnconfigure(2, minsize=96)
         self.simple_mirror_row.columnconfigure(1, weight=1)
@@ -598,8 +620,9 @@ class StudioApp(tk.Tk):
         self.job_table.grid_configure(sticky="nsew")
         self.activity_panel.rowconfigure(2, weight=1 if simple and not details else 0)
         self.activity_panel.rowconfigure(3, weight=1 if details else 0, minsize=72 if details else 0)
-        for widget in (self.log, self.log_scroll, self.log_toolbar):
+        for widget in (self.log, self.log_scroll, self.copy_log_button, self.clear_log_button):
             widget.grid() if details else widget.grid_remove()
+        self.log_toolbar.grid()
 
     def simple_paste(self) -> None:
         try:
@@ -707,7 +730,7 @@ class StudioApp(tk.Tk):
             subprocess.Popen(["xdg-open", str(folder)])
 
     def remove_finished(self) -> None:
-        active = {"Queued", "Downloading", "Syncing", "Reviewing"}
+        active = {"Queued", "Downloading", "Syncing", "Reviewing", "Discovering"}
         for identity, job in list(self.job_history.items()):
             if job.status not in active and job is not self.current_job:
                 self.job_table.delete(identity)
@@ -721,22 +744,47 @@ class StudioApp(tk.Tk):
         settings = self._settings_from_ui()
         settings.provider = "Auto"
         try:
-            jobs = core.build_jobs(urls, settings)
             core.save_settings(self._settings_from_ui())
+            title = self.preview_data["title"] if len(urls) == 1 and self.preview_data and self.preview_url == urls[0] else ""
+            self.queue_url_jobs(urls, settings, on_queued=lambda: self.consume_urls(urls), title=title)
         except (ValueError, OSError) as exc:
             messagebox.showerror(core.APP_NAME, str(exc))
-            return
-        self.enqueue_jobs(jobs)
-        if len(urls) == 1 and self.preview_data and self.preview_url == urls[0]:
-            for job in jobs:
-                job.label = self.preview_data["title"]
-                self.job_table.set(job.id, "items", job.label)
-        self.simple_link_var.set("")
+
+    def consume_urls(self, urls: list[str]) -> None:
+        if core.extract_urls(self.simple_link_var.get()) == urls:
+            self.simple_link_var.set("")
         for index in reversed(range(len(self.detected_urls))):
             if self.detected_urls[index] in urls:
                 del self.detected_urls[index]
                 self.url_listbox.delete(index)
         self._update_clipboard_status(0)
+
+    def queue_url_jobs(self, urls: list[str], settings: core.Settings, on_queued=None, title="") -> None:
+        artists = [url for url in urls if core.is_spotify_artist(url) and core.provider_for(url, settings) == "spotDL"]
+        if not artists:
+            jobs = core.build_jobs(urls, settings)
+            if title:
+                for job in jobs:
+                    job.label = title
+            self.enqueue_jobs(jobs)
+            if on_queued:
+                on_queued()
+            return
+        cancel = threading.Event()
+        placeholder = core.DownloadJob(urls, settings, provider="spotDL", status="Discovering",
+                                       label=title or "Artist releases")
+        def prepare():
+            return core.prepare_jobs(urls, settings, cancel,
+                                     lambda text: self.ui_events.put(("preparation", text, cancel)))
+        def queued(count, error):
+            if error:
+                self._append_log(f"Artist preparation: {error}\n")
+                self.status_var.set(error)
+            else:
+                self.status_var.set(f"Queued {count} download jobs")
+                if on_queued:
+                    on_queued()
+        self.prepare_batch(prepare, queued, cancel, placeholder)
 
     def _load_vars(self) -> None:
         for key, var in self._vars.items():
@@ -786,43 +834,67 @@ class StudioApp(tk.Tk):
         self.status_var.set(f"Settings saved to {core.CONFIG_FILE}")
 
     def enqueue_jobs(self, jobs: list[core.DownloadJob]) -> None:
+        if self.closing:
+            return
+        if self.stop_event.is_set():
+            if self.worker and self.worker.is_alive():
+                raise ValueError("Wait for the current download to stop before adding new jobs.")
+            self.stop_event.clear()
         for job in jobs:
             self.job_history[job.id] = job
             self.job_table.insert("", "end", iid=job.id,
                                   values=(job.provider, job.label or f"{len(job.urls)}: {job.urls[0]}", "Queued"))
             self.jobs.put(job)
         self._start_worker()
+        self.update_queue_summary()
 
     def retry_selected(self) -> None:
         for job_id in self.job_table.selection():
             old = self.job_history[job_id]
-            if old.status in {"Queued", "Downloading", "Syncing", "Reviewing"}:
+            if old.status in {"Queued", "Downloading", "Syncing", "Reviewing", "Discovering"}:
                 continue
             try:
-                jobs = core.build_jobs(old.urls, old.settings)
-                for job in jobs:
-                    job.label = old.label
-                self.enqueue_jobs(jobs)
+                jobs = []
+                for source in old.retry_jobs or [old]:
+                    urls = source.urls if source.status == "Cancelled" else source.failed_urls or source.urls
+                    if any(core.is_spotify_artist(url) for url in urls):
+                        self.queue_url_jobs(urls, source.settings, title=source.label)
+                        continue
+                    retries = core.build_jobs(urls, source.settings)
+                    for job in retries:
+                        job.label = source.label
+                        job.release_id = source.release_id
+                    jobs.extend(retries)
+                if jobs:
+                    self.enqueue_jobs(jobs)
             except (ValueError, OSError) as exc:
                 messagebox.showerror(core.APP_NAME, str(exc))
 
     def clear_pending(self) -> None:
+        if self.preparing:
+            self.preparation_cancel.set()
+        count = 0
         while True:
             try:
                 job = self.jobs.get_nowait()
             except queue.Empty:
                 break
-            self.set_job_status(job, "Cancelled")
+            job.status = "Cancelled"
+            self.ui_events.put(("job", job.id, "Cancelled"))
             self.jobs.task_done()
+            count += 1
+        if count:
+            self.log_queue.put(f"Cancelled {count} queued jobs.\n")
+        self.update_queue_summary()
 
     def set_job_status(self, job: core.DownloadJob, status: str) -> None:
         job.status = status
-        if status in {"Completed", "Cancelled", "Mirror failed", "Failed"} or status.startswith("Failed ("):
+        if status in {"Completed", "Cancelled", "Mirror failed", "Failed"} or status.startswith(("Failed (", "Partial")):
             self.log_queue.put(f"{job.provider} job: {status}.\n")
         self.ui_events.put(("job", job.id, status))
 
     def maintenance_available(self) -> bool:
-        if (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive()):
+        if (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive()) or self.preparing:
             messagebox.showinfo(core.APP_NAME, "Wait for the current library operation to finish first.")
             return False
         return True
@@ -892,21 +964,64 @@ class StudioApp(tk.Tk):
         return core.youtube_search_command(query, offset, limit)
 
     def queue_discovery_items(self, items: list[dict], destination: str, album_folders: bool,
-                              catalogue: dict | None) -> int:
+                              catalogue: dict | None, on_done=None, cancel=None) -> int | None:
         settings = self._settings_from_ui()
         settings.output_dir = destination.strip()
         settings.provider = "Auto"
         settings.spotify_album_folders = album_folders
-        if catalogue is not None:
-            jobs = core.build_discography_jobs(catalogue, settings, items)
-        else:
+        def prepare():
+            if catalogue is not None:
+                return core.build_discography_jobs(catalogue, settings, items)
             if any(item["kind"] == "track" for item in items):
                 settings.mode = "audio"
-            jobs = core.build_jobs([item["url"] for item in items], settings)
-        self.enqueue_jobs(jobs)
-        return len(jobs)
+            return core.build_jobs([item["url"] for item in items], settings)
+        if on_done is None:
+            jobs = prepare()
+            self.enqueue_jobs(jobs)
+            return len(jobs)
+        self.prepare_batch(prepare, on_done, cancel if cancel is not None else threading.Event())
+        return None
+
+    def prepare_batch(self, prepare: Callable, on_done: Callable, cancel: threading.Event, placeholder=None) -> None:
+        if self.closing:
+            raise ValueError("The app is closing.")
+        if self.preparing:
+            raise ValueError("A download batch is already being prepared.")
+        if self.stop_event.is_set() and self.worker and self.worker.is_alive():
+            raise ValueError("Wait for the current download to stop before preparing a new batch.")
+        self.preparation_cancel = cancel
+        self.preparing = True
+        if placeholder:
+            self.job_history[placeholder.id] = placeholder
+            self.job_table.insert("", "end", iid=placeholder.id, values=(placeholder.provider, placeholder.label, placeholder.status))
+        self.status_var.set("Preparing download jobs...")
+        self.update_queue_summary()
+        def worker():
+            try:
+                jobs, error = prepare(), None
+            except Exception as exc:
+                jobs, error = [], str(exc)
+            self.ui_events.put(("prepared", jobs, error, on_done, cancel, placeholder))
+        self.preparation_worker = threading.Thread(target=worker, daemon=True)
+        try:
+            self.preparation_worker.start()
+        except (RuntimeError, OSError) as exc:
+            self.preparing = False
+            cancel.set()
+            if placeholder:
+                self.set_job_status(placeholder, "Failed")
+            self.update_queue_summary()
+            raise ValueError(f"Could not start download preparation: {exc}") from exc
 
     def close_app(self) -> None:
+        if not self.closing and self.worker and self.worker.is_alive():
+            if not messagebox.askyesno(core.APP_NAME, "Stop all downloads and close? Completed local files will be kept."):
+                return
+            self.closing = True
+            self.cancel_current()
+        self.preparation_cancel.set()
+        if self.preparing:
+            self.closing = True
         if self.preview_timer is not None:
             self.after_cancel(self.preview_timer)
             self.preview_timer = None
@@ -915,13 +1030,14 @@ class StudioApp(tk.Tk):
             self.after(100, self.close_app)
             return
         browser = getattr(self, "music_browser", None)
-        if browser is not None and browser.winfo_exists() and browser.busy:
+        if browser is not None and browser.winfo_exists():
             browser.close()
-            self.after(200, self.close_app)
-            return
-        busy = (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive())
+        busy = (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive()) or (self.preparation_worker and self.preparation_worker.is_alive())
         if busy:
-            messagebox.showinfo(core.APP_NAME, "Stop the current download or wait for the search or library operation before closing.")
+            if self.closing:
+                self.after(100, self.close_app)
+            else:
+                messagebox.showinfo(core.APP_NAME, "Wait for the current library operation before closing.")
             return
         try:
             core.save_settings(self._settings_from_ui())
@@ -932,6 +1048,10 @@ class StudioApp(tk.Tk):
 
     def destroy(self) -> None:
         self.preview.invalidate()
+        self.preparation_cancel.set()
+        browser = getattr(self, "music_browser", None)
+        if browser is not None and browser.winfo_exists():
+            browser.close()
         for timer in self.tk.call("after", "info"):
             self.after_cancel(timer)
         super().destroy()
@@ -1074,14 +1194,11 @@ class StudioApp(tk.Tk):
             return
         try:
             self.settings = self._settings_from_ui()
-            jobs = core.build_jobs(urls, self.settings)
             core.save_settings(self.settings)
+            self.queue_url_jobs(urls, self.settings, on_queued=lambda: self.consume_urls(urls))
         except (ValueError, OSError) as exc:
             messagebox.showerror(core.APP_NAME, str(exc))
             return
-        self.enqueue_jobs(jobs)
-        self.clear_urls()
-        self._append_log(f"Queued {len(urls)} URL(s).\n")
 
     def show_command(self) -> None:
         typed_urls = core.extract_urls(self.url_text.get("1.0", "end"))
@@ -1124,12 +1241,13 @@ class StudioApp(tk.Tk):
 
     def cancel_current(self) -> None:
         self.stop_event.set()
-        self.status_var.set("Cancelling current job...")
+        self.preparation_cancel.set()
+        self.clear_pending()
+        self.status_var.set("Stopping downloads; completed files are kept...")
 
     def _start_worker(self) -> None:
-        if (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive()) or self.jobs.empty():
+        if self.closing or self.stop_event.is_set() or (self.worker and self.worker.is_alive()) or (self.maintenance_worker and self.maintenance_worker.is_alive()) or self.jobs.empty():
             return
-        self.stop_event.clear()
         self.worker = threading.Thread(target=self._worker_loop, daemon=True)
         self.worker.start()
 
@@ -1150,11 +1268,19 @@ class StudioApp(tk.Tk):
                         self.set_job_status(job, "Cancelled")
                     elif code:
                         core.cleanup_orphan_thumbnails(job.settings, before, self.log_queue.put)
-                        self.set_job_status(job, f"Failed ({code})")
+                        if job.completed_files:
+                            sync_code = core.finish_download_job(job, self.log_queue.put, self.stop_event)
+                            if sync_code == 130:
+                                self.set_job_status(job, "Cancelled")
+                            else:
+                                status = f"Partial ({len(job.failed_urls)} failed)" if job.failed_urls else "Partial (see report)"
+                                self.set_job_status(job, status + ("; mirror failed" if sync_code else ""))
+                        else:
+                            self.set_job_status(job, f"Failed ({code})")
                     else:
                         self.set_job_status(job, "Syncing")
-                        sync_code = core.finish_download_job(job, self.log_queue.put)
-                        self.set_job_status(job, "Mirror failed" if sync_code else "Completed")
+                        sync_code = core.finish_download_job(job, self.log_queue.put, self.stop_event)
+                        self.set_job_status(job, "Cancelled" if sync_code == 130 else "Mirror failed" if sync_code else "Completed")
                 except Exception as exc:
                     self.log_queue.put(f"Job failed: {exc}\n")
                     self.set_job_status(job, "Failed")
@@ -1162,7 +1288,6 @@ class StudioApp(tk.Tk):
                     self.jobs.task_done()
         finally:
             self.current_job = None
-            self.stop_event.clear()
 
     def _append_log(self, text: str) -> None:
         self.log.configure(state="normal")
@@ -1190,9 +1315,29 @@ class StudioApp(tk.Tk):
                     importlib.invalidate_caches()
                     self.spotify_status.set("Spotify support installed" if event[1] == 0 else "Setup failed; see activity log")
                     self.install_spotify_button.configure(state="normal")
+                elif event[0] == "prepared":
+                    _, jobs, error, callback, cancelled, placeholder = event
+                    self.preparing = False
+                    if cancelled.is_set() or self.closing:
+                        error = "Preparation cancelled."
+                    if error is None:
+                        try:
+                            self.enqueue_jobs(jobs)
+                        except ValueError as exc:
+                            error = str(exc)
+                    if placeholder:
+                        if error:
+                            self.set_job_status(placeholder, "Cancelled" if cancelled.is_set() or self.closing else "Failed")
+                        else:
+                            self.job_table.delete(placeholder.id)
+                            self.job_history.pop(placeholder.id, None)
+                    callback(len(jobs) if error is None else 0, error)
+                elif event[0] == "preparation" and event[2] is self.preparation_cancel and not event[2].is_set():
+                    self.status_var.set(event[1])
         except queue.Empty:
             pass
         self._start_worker()
+        self.update_queue_summary()
         self.after(120, self._poll_log_queue)
 
     def _poll_clipboard(self) -> None:
@@ -1204,7 +1349,14 @@ class StudioApp(tk.Tk):
         queued = self.jobs.qsize()
         if self.current_job:
             self.status_var.set(f"{self.current_job.provider}: {self.current_job.status}, {queued} queued")
-        self.stop_button.configure(state="normal" if self.current_job else "disabled")
-        self.simple_stop_button.configure(state="normal" if self.current_job else "disabled")
-        self.queue_var.set(f"Queued jobs: {queued}")
+        self.update_queue_summary()
         self.after(750, self._refresh_status)
+
+    def update_queue_summary(self) -> None:
+        queued = self.jobs.qsize()
+        active = 1 if self.current_job else 0
+        busy = active or queued or self.preparing
+        self.stop_button.configure(state="normal" if busy else "disabled")
+        self.simple_stop_button.configure(state="normal" if busy else "disabled")
+        suffix = " | Discovering" if self.preparing else ""
+        self.queue_var.set(f"Queued: {queued} | Active: {active}{suffix}")

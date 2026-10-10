@@ -6,7 +6,7 @@ The app starts in Simple mode. Paste a supported link and optionally inspect its
 
 Choose Audio/Video, Format, Quality and a local Save to folder, then click Download. For batches, use Advanced's link staging. Leave the provider on Auto to route Spotify links to spotDL and other supported links to yt-dlp.
 
-Each queued job remembers the settings used when it was added. Retry Selected repeats that job with its original destination and options. Open Folder opens its destination; Remove Finished clears terminal queue entries without deleting files. The queue is session-only and is not restored after closing the app. Keep source links if you will need them later.
+Each queued job remembers the settings used when it was added. Retry Selected retries reported failed Spotify tracks with the original destination and options; if no track report exists it retries the source job. The visible counter separates pending jobs from the active job, even with Details hidden. Stop Downloads cancels discovery/preparation, the active job and queued jobs; it does not automatically restart them. Cancel Queued also cancels pending preparation but leaves the active download running. Open Folder opens its destination; Remove Finished clears terminal queue entries without deleting files. The queue is session-only and is not restored after closing the app. Keep source links if you will need them later.
 
 ## Formats And Quality
 
@@ -24,7 +24,17 @@ Filter albums, singles/EPs or compilations, then download selected releases or t
 
 The scope is the artist's own releases available from Spotify, not guest appearances on other artists' releases or material absent from the catalogue. Regional availability may affect results. Spotify lookup requires the optional installation; the utility does not ask for Spotify login credentials.
 
-Album folders creates YEAR - Album Title [Spotify ID] folders, with disc/track-number filenames. Distinct release IDs prevent same-title editions overwriting one another. Each release is a separate retryable job. Disable Album folders for a flat library. Pasting an artist URL into the normal download field also expands the catalogue; browsing first gives you more control.
+Choose **Artist layout** beneath Save to in Simple mode, under Library in Advanced, or in the artist browser. The choice is shared across these views and saved with your preferences.
+
+**Album folders** creates readable `YEAR - Album Title` folders, with disc/track-number filenames. Same-title editions get an `(edition 2)` suffix when needed. A small `.studio-release.json` identity file keeps editions distinct without putting Spotify IDs in folder names; keep it with the release, independently of the optional download archive. Existing ID-suffixed folders are recognized and reused until explicitly migrated.
+
+**One folder** saves songs directly in Save to, usually as `Artist - Song.mp3`, and mirrors directly into the matching artist directory without album subfolders. Custom artist templates use only their filename component; templates without a song-title placeholder fall back to the default. Each release remains a separate retryable queue job, but shares the folder and optional archive. Existing filenames are skipped rather than overwritten. Same-named tracks from different editions can therefore collapse onto an existing file; use Album folders to preserve every edition separately.
+
+Changing layout affects new jobs and does not move existing downloads or NAS files. Already queued jobs retain their original layout. With One folder, existing tagged songs can still be recognized in older subfolders and skipped; use a fresh destination when you need a completely flat new library. Pasting an artist URL into the normal download field also expands the catalogue; browsing first gives you more control.
+
+A directly pasted artist link initially shows a Discovering row. The desktop app prepares its complete catalogue in the background, then replaces that row with one visible job per release before any of those releases download. Failed discovery retains the source link and a retryable failed row; stopping discovery adds no hidden download batch. New links entered while preparation is running are preserved.
+
+Download Discography prepares jobs in the background and closes the browser after they reach the queue. Cancel or close the browser during preparation to prevent the batch being added. Partial Spotify jobs keep and mirror validated completed audio, retain a failed status, and save a recovery report under `%APPDATA%\ytdlp-studio\reports`. Cancellation keeps local files but does not start a new mirror operation; use Sync Now afterward if needed.
 
 ## Optional NAS Mirroring
 

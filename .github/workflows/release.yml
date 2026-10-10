@@ -44,4 +44,4 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" "$env:ARCHIVE" "$env:CHECKSUM" `
             --title "yt-dlp Studio ${{ github.ref_name }}" `
-            --verify-tag --notes-file "$env:RELEASE_NOTES"
+            --verify-tag --prerelease --notes-file "$env:RELEASE_NOTES"

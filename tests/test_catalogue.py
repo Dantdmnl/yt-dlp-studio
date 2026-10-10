@@ -2,6 +2,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import wave
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -129,6 +130,46 @@ class DiscographyJobTests(unittest.TestCase):
         mock.start()
         self.addCleanup(mock.stop)
 
+    @patch.object(app, "spotdl_available", return_value=True)
+    def test_prepare_jobs_expands_direct_artist_and_keeps_ordinary_sources(self, _):
+        video = "https://youtube.com/watch?v=fixture"
+        with patch.object(app, "request_catalogue", return_value=self.collection) as discovery, patch.object(app, "build_command", return_value=["yt-dlp"]):
+            jobs = app.prepare_jobs([ARTIST, ARTIST + "?si=different", video], self.settings)
+        self.assertEqual(len(jobs), 3)
+        self.assertEqual([j.urls[0] for j in jobs[:2]], [r["url"] for r in self.collection["items"]])
+        self.assertEqual(jobs[2].urls, [video])
+        discovery.assert_called_once_with("artist", ARTIST, all_editions=False, cancel=None)
+        self.assertTrue(all(j.release_id for j in jobs[:2]))
+
+    @patch.object(app, "spotdl_available", return_value=True)
+    def test_direct_artist_cancellation_and_bad_catalogue_never_return_partial_queue(self, _):
+        cancel = threading.Event()
+        def discover(*args, **kwargs):
+            cancel.set()
+            return self.collection
+        with patch.object(app, "request_catalogue", side_effect=discover), patch.object(app, "build_discography_jobs") as build:
+            with self.assertRaises(InterruptedError):
+                app.prepare_jobs([ARTIST], self.settings, cancel)
+            build.assert_not_called()
+        cancel.clear()
+        with patch.object(app, "request_catalogue", side_effect=ValueError("incomplete catalogue")):
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                app.prepare_jobs([ARTIST], self.settings, cancel)
+
+    def test_disabled_playlists_or_missing_spotify_fail_before_discovery(self):
+        with patch.object(app, "request_catalogue") as discovery:
+            self.settings.playlist = False
+            with self.assertRaisesRegex(ValueError, "playlists"):
+                app.prepare_jobs([ARTIST], self.settings)
+            self.settings.playlist = True
+            self.settings.mode = "video"
+            with self.assertRaisesRegex(ValueError, "Audio"):
+                app.prepare_jobs([ARTIST], self.settings)
+            self.settings.mode = "audio"
+            with patch.object(app, "spotdl_available", return_value=False), self.assertRaisesRegex(ValueError, "not installed"):
+                app.prepare_jobs([ARTIST], self.settings)
+            discovery.assert_not_called()
+
     def test_album_folders_match_nas_hierarchy_and_do_not_collide(self):
         jobs = app.build_discography_jobs(self.collection, self.settings)
         self.assertEqual(len(jobs), 2)
@@ -161,7 +202,8 @@ class DiscographyJobTests(unittest.TestCase):
         with patch.object(app, "request_catalogue", return_value=self.collection), patch.object(app, "build_discography_jobs", return_value=child_jobs), patch.object(app, "run_command", side_effect=[1, 0]) as run, patch.object(app, "finish_download_job", return_value=0) as finish:
             self.assertEqual(app.run_download_job(job, lambda _: None), 1)
             self.assertEqual(run.call_count, 2)
-            finish.assert_called_once_with(child_jobs[1], unittest.mock.ANY)
+            finish.assert_called_once_with(child_jobs[1], unittest.mock.ANY, None)
+        self.assertEqual(job.retry_jobs, child_jobs[:1])
 
     def test_artist_cancellation_does_not_start_album_downloads(self):
         job = app.DownloadJob([ARTIST], self.settings, provider="spotDL")
@@ -184,15 +226,17 @@ class DiscographyJobTests(unittest.TestCase):
         def download_fixture(_command, _output, _cancel, output_dir):
             folder = Path(output_dir)
             folder.mkdir(parents=True, exist_ok=True)
-            (folder / "track.mp3").write_bytes(b"test fixture only")
+            with wave.open(str(folder / "track.wav"), "wb") as audio:
+                audio.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+                audio.writeframes(b"\x00\x00" * 8000)
             (folder / "spotdl-archive.txt").write_text("test archive", encoding="utf-8")
             return 0
 
         with patch.object(app, "request_catalogue", return_value=self.collection), patch.object(app, "run_command", side_effect=download_fixture):
             self.assertEqual(app.run_download_job(job, lambda _: None), 0)
-        mirrored = list((self.root / "NAS" / "Artist").rglob("track.mp3"))
+        mirrored = list((self.root / "NAS" / "Artist").rglob("track.wav"))
         self.assertEqual(len(mirrored), 2)
-        self.assertEqual({file.parent.name for file in mirrored}, {app.album_folder_name(r) for r in self.collection["items"]})
+        self.assertEqual({file.parent.name for file in mirrored}, set(app.release_folder_names(self.collection, self.root / "Artist").values()))
         self.assertFalse(list((self.root / "NAS").rglob("spotdl-archive.txt")))
 
     def test_cli_bad_artist_and_video_combination_are_friendly_errors(self):

@@ -14,10 +14,12 @@ ytdlp_studio/
   inspection.py    Metadata-only preview and stale-response protection
   formats.py       Simple Format/Quality choices
   processes.py     Hidden subprocesses and process-tree cancellation
+  download_host.py Isolated provider compatibility and per-track reports
+  library.py       Validated reversible legacy-folder migration
   media_tools.py   FFmpeg/ffprobe discovery and verified installation
   version.py       Application name/version
 tests/             Unit/GUI tests, fixtures, explicit local integrations
-tools/             Source-release builder
+tools/             Source-release builder and explicit library migration
 docs/              User guide, CLI, troubleshooting, discovery and contributor notes
 ```
 
@@ -33,6 +35,7 @@ Root `ytdlp_wrapper.py` and `media_tools.py` are compatibility launchers. CLI an
 .\.venv\Scripts\python.exe -B -m coverage run --append tests/gui_smoke.py --no-screenshots
 .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_local.py
 .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_sponsorblock.py
+.\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_spotdl.py
 .\.venv\Scripts\python.exe -m coverage report --fail-under=60
 .\.venv\Scripts\python.exe -m pip check
 git diff --check
@@ -53,3 +56,13 @@ CI runs Python 3.10/3.12 with core and optional Spotify requirements, static che
 The visible queue is session-only. Every job snapshots its destination, provider, archive, and mirror settings. UI events for removed terminal jobs are discarded. Maintenance uses nonzero results as failures. yt-dlp continues to the next playlist item on download errors, but errors are not globally suppressed: failed download/conversion jobs retain a nonzero result.
 
 The media-tools installer verifies the archive checksum and both executables before replacing local tools. Source release packaging uses an allowlist, validates required modules, rejects unsafe file paths, and checks the tag against the single version definition. See [release.md](release.md) for publishing steps.
+
+## Legacy Folder Migration
+
+Keep backups, stop downloads and verify the artist/root paths before library maintenance. In a developer checkout, preview the old ID-suffixed folders without changing files:
+
+```powershell
+.\.venv\Scripts\python.exe -B tools/migrate_library.py --artist https://open.spotify.com/artist/ARTIST_ID --local D:/Music/ArtistName --mirror \\NAS\Media\Music\ArtistName
+```
+
+Replace `ARTIST_ID` with the real 22-character identity. Omit `--mirror` for local-only migration. Add `--apply` only after reviewing the preview. The tool validates artist membership, rejects links/junctions and destination collisions, hashes all files, verifies each existing NAS file against its local counterpart, and never merges or overwrites folders. Missing NAS releases remain missing; this does not retroactively sync audio. It revalidates before renaming, attempts rollback on failure, and saves a private audit under `%APPDATA%\ytdlp-studio\reports`. If rollback reports a problem, inspect that audit and the actual paths before doing anything further. Empty libraries are a no-op.

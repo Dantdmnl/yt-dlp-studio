@@ -2,7 +2,9 @@
 
 A Windows utility for downloading music and video, reviewing Spotify artist releases, and optionally mirroring your library to a NAS. One queue, a simple default view, and advanced controls when you need them.
 
-Version: **0.2.0**. Distributed as a **source zip**, not a standalone executable.
+Version: **0.2.1**. Distributed as a **source zip**, not a standalone executable.
+
+**Release status:** private prerelease testing. Version 0.2.1 includes artist-queue, hidden-console and recovery fixes. The old 0.2.0 zip does not contain them. Backend availability and full-discography downloads still need real-world acceptance.
 
 ## Get Started
 
@@ -31,7 +33,7 @@ Spotify support accepts tracks, albums, playlists and artist links. To review an
 - **Archives:** optional per-provider history skips previously completed URLs.
 - **Duplicate review:** inspect possible matches across downloaders. Automatic cleanup only moves byte-identical files; nothing is permanently deleted.
 - **Search:** request 25, 50 or 100 results and use **Load More**.
-- **Album folders:** separate release editions and keep the same artist/album hierarchy on the mirror.
+- **Artist layout:** choose Album folders or One folder in Simple, Advanced or the artist browser; mirror the same layout.
 
 Read the [user guide](docs/user-guide.md) for mirroring, duplicate safety, editions and quality limits.
 

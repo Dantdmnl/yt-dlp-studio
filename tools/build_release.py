@@ -37,6 +37,8 @@ def release_notes(root: Path = ROOT) -> str:
     return (
         "## Get Started\n\n"
         "This is a Windows source distribution, not a standalone executable.\n\n"
+        "Prerelease for validation. Artist downloads remain subject to upstream matching and extraction availability. "
+        "Do not assume every recording in a discovered catalogue can be downloaded.\n\n"
         "1. Install Python 3.10+ for Windows (64-bit).\n"
         f"2. Download `yt-dlp-studio-v{APP_VERSION}.zip` below and extract the whole zip.\n"
         "3. Double-click **Setup.cmd**; choose optional Spotify support. Setup installs dependencies, "
@@ -58,7 +60,7 @@ def release_files(root: Path) -> list[Path]:
     files += sorted((root / "docs").glob("*.md"))
     required = {root / "ytdlp_studio" / name for name in
                 ("__init__.py", "__main__.py", "version.py", "cli.py", "gui.py", "backend.py",
-                 "catalogue.py", "browser.py", "inspection.py", "formats.py", "media_tools.py", "processes.py")}
+                 "catalogue.py", "browser.py", "inspection.py", "formats.py", "media_tools.py", "processes.py", "download_host.py", "library.py")}
     required.update(root / "docs" / name for name in ("user-guide.md", "cli.md", "troubleshooting.md"))
     if not required.issubset(files):
         raise ValueError("The runtime package or user documentation is incomplete.")

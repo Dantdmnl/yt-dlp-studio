@@ -16,18 +16,19 @@ import tempfile
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Callable, Iterable
 from urllib.parse import urlparse
 
 from .media_tools import find_installed_tools
 from .catalogue import request_catalogue, spotify_id
-from .processes import terminate_tree, window_kwargs
+from .processes import own_process_tree, terminate_tree, window_kwargs
 
 from .version import APP_NAME as APP_NAME, APP_VERSION as APP_VERSION
 CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / ".config")) / "ytdlp-studio"
 CONFIG_FILE = CONFIG_DIR / "settings.json"
 DEFAULT_FILENAME_TEMPLATE = "%(artist,creator,uploader|Unknown)s - %(title)s.%(ext)s"
+DEFAULT_SPOTDL_TEMPLATE = "{artists} - {title}.{output-ext}"
 SPONSORBLOCK_CATEGORIES = ("sponsor", "intro", "outro", "selfpromo", "preview", "filler", "interaction", "music_offtopic")
 
 
@@ -110,7 +111,7 @@ class Settings:
     cookies_file: str = ""
     extra_args: str = ""
     provider: str = "Auto"
-    spotdl_template: str = "{artists} - {title}.{output-ext}"
+    spotdl_template: str = DEFAULT_SPOTDL_TEMPLATE
     spotdl_extra_args: str = ""
     watch_clipboard: bool = True
     simple_mode: bool = True
@@ -131,6 +132,11 @@ class DownloadJob:
     provider: str = "yt-dlp"
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     label: str = ""
+    failed_urls: list[str] = field(default_factory=list)
+    completed_files: list[Path] = field(default_factory=list)
+    report_path: str = ""
+    release_id: str = ""
+    retry_jobs: list[DownloadJob] = field(default_factory=list)
 
 
 @dataclass
@@ -157,7 +163,7 @@ def normalize_settings(settings: Settings) -> Settings:
     if not settings.filename_template.strip():
         settings.filename_template = DEFAULT_FILENAME_TEMPLATE
     if not settings.spotdl_template.strip():
-        settings.spotdl_template = "{artists} - {title}.{output-ext}"
+        settings.spotdl_template = DEFAULT_SPOTDL_TEMPLATE
     return settings
 
 
@@ -223,7 +229,7 @@ def build_spotdl_command(queries: list[str], settings: Settings) -> list[str]:
     ):
         raise ValueError("Enable playlists to download a Spotify album, playlist, or artist.")
     preset = AUDIO_PRESETS[settings.audio_preset]
-    command = [sys.executable, "-u", "-m", "spotdl", "download", *queries,
+    command = downloader_command("spotdl") + ["download", *queries,
                "--output", str(Path(settings.output_dir).expanduser() / settings.spotdl_template),
                "--format", preset["codec"], "--bitrate", "auto",
                "--overwrite", "skip", "--scan-for-songs", "--threads", "1",
@@ -272,7 +278,54 @@ def build_jobs(queries: Iterable[str], settings: Settings) -> list[DownloadJob]:
     return jobs
 
 
+def prepare_jobs(queries: Iterable[str], settings: Settings, cancel=None, progress=None) -> list[DownloadJob]:
+    """Expand artist links before queue insertion; ordinary sources keep their routing."""
+    settings = Settings(**asdict(settings))
+    validate_download(settings)
+    jobs, pending, artists = [], [], set()
+    for query in dict.fromkeys(queries):
+        if cancel and cancel.is_set():
+            raise InterruptedError("Preparation cancelled.")
+        if not is_spotify_artist(query) or provider_for(query, settings) != "spotDL":
+            pending.append(query)
+            continue
+        identity = spotify_id(query, "artist")
+        if identity in artists:
+            continue
+        artists.add(identity)
+        if not settings.playlist:
+            raise ValueError("Enable playlists to download an artist's albums and singles.")
+        if settings.mode != "audio":
+            raise ValueError("spotDL downloads audio. Select Audio mode for Spotify links.")
+        if not spotdl_available():
+            raise ValueError("Spotify support is not installed. Run .\\install.ps1 -Spotify, then reopen the app.")
+        if pending:
+            jobs.extend(build_jobs(pending, settings))
+            pending.clear()
+        if progress:
+            progress("Discovering artist releases...")
+        catalogue = request_catalogue("artist", query, all_editions=settings.spotify_all_editions, cancel=cancel)
+        if cancel and cancel.is_set():
+            raise InterruptedError("Preparation cancelled.")
+        if progress:
+            progress(f"{catalogue['artist']}: preparing {len(catalogue['items'])} release jobs...")
+        jobs.extend(build_discography_jobs(catalogue, settings))
+    if pending:
+        jobs.extend(build_jobs(pending, settings))
+    if cancel and cancel.is_set():
+        raise InterruptedError("Preparation cancelled.")
+    return jobs
+
+
 def run_download_job(job: DownloadJob, output: Callable[[str], None], stop_event: threading.Event | None = None) -> int:
+    if stop_event and stop_event.is_set():
+        return 130
+    job.failed_urls.clear()
+    job.completed_files.clear()
+    job.retry_jobs.clear()
+    job.report_path = ""
+    if job.release_id:
+        write_release_marker(Path(job.settings.output_dir), job.release_id, job.label)
     if job.provider != "spotDL":
         return run_command(job.command, output, stop_event, job.settings.output_dir)
     artist_urls = [url for url in job.urls if is_spotify_artist(url)]
@@ -293,6 +346,7 @@ def run_download_job(job: DownloadJob, output: Callable[[str], None], stop_event
             output(f"{catalogue['artist']}: {len(catalogue['items'])} releases in {catalogue['groups']} release groups.\n")
         for index, child in enumerate(children, 1):
             if stop_event and stop_event.is_set():
+                job.retry_jobs.extend(children[index - 1:])
                 return 130
             output(f"Release {index}/{len(children)}: {child.label or child.urls[0]}\n")
             try:
@@ -300,25 +354,73 @@ def run_download_job(job: DownloadJob, output: Callable[[str], None], stop_event
                 code = run_download_job(child, output, stop_event)
                 if code and code != 130:
                     cleanup_orphan_thumbnails(child.settings, before, output)
-                elif not code:
-                    code = finish_download_job(child, output)
+                if code != 130 and (not code or child.completed_files):
+                    sync_code = finish_download_job(child, output, stop_event)
+                    code = code or sync_code
             except (ValueError, OSError, TimeoutError) as exc:
                 output(f"Release failed: {exc}\n")
                 code = 1
-            if code == 130:
-                return code
             if code:
                 result = code
+                child.status = "Cancelled" if code == 130 else "Failed"
+                job.retry_jobs.append(child)
+            job.failed_urls.extend(child.failed_urls)
+            job.completed_files.extend(child.completed_files)
+            if code == 130:
+                job.retry_jobs.extend(children[index:])
+                return code
         return result
     # spotDL may return zero with individual song failures; inspect its error report.
     with tempfile.TemporaryDirectory(prefix="studio-spotdl-") as temporary:
         errors = Path(temporary) / "errors.txt"
-        command = job.command + ["--save-errors", str(errors)]
+        tracks = Path(temporary) / "tracks.jsonl"
+        command = job.command + ["--studio-report", str(tracks), "--save-errors", str(errors)]
         code = run_command(command, output, stop_event, job.settings.output_dir)
-        if code == 0 and errors.exists() and errors.stat().st_size:
-            output("spotDL reported failed tracks:\n" + errors.read_text(encoding="utf-8") + "\n")
-            return 1
+        details = errors.read_text(encoding="utf-8") if errors.exists() else ""
+        job.failed_urls = list(dict.fromkeys(re.findall(r"https://open\.spotify\.com/track/[A-Za-z0-9]{22}", details)))
+        root = Path(job.settings.output_dir).expanduser().resolve()
+        if tracks.exists():
+            for line in tracks.read_text(encoding="utf-8").splitlines():
+                try:
+                    record = json.loads(line)
+                    if record.get("status") == "completed" and record.get("path"):
+                        path = Path(record["path"]).resolve()
+                        if root in path.parents and path.is_file():
+                            job.completed_files.append(path)
+                    elif record.get("status") == "failed" and record.get("url"):
+                        spotify_id(record["url"], "track")
+                        job.failed_urls.append(record["url"])
+                except (ValueError, TypeError, AttributeError, OSError):
+                    output("An incomplete track report was ignored; completed files remain local.\n")
+        job.failed_urls = list(dict.fromkeys(job.failed_urls))
+        if code == 0 and (details.strip() or job.failed_urls):
+            code = 1
+        if details.strip():
+            output("spotDL reported failed tracks:\n" + details + "\n")
+        if code:
+            save_failure_report(job, code, details, output)
         return code
+
+
+def save_failure_report(job: DownloadJob, code: int, details: str, output: Callable[[str], None]) -> None:
+    try:
+        folder = CONFIG_DIR / "reports"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{job.id}.json"
+        temporary = path.with_suffix(".json.tmp")
+        try:
+            temporary.write_text(json.dumps({"provider": job.provider, "label": job.label, "urls": job.urls,
+                                             "output_dir": job.settings.output_dir, "exit_code": code,
+                                             "failed_urls": job.failed_urls,
+                                             "completed_files": [str(file) for file in job.completed_files],
+                                             "details": details}, indent=2), encoding="utf-8")
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        job.report_path = str(path)
+        output(f"Failure/recovery report saved to {path}\n")
+    except OSError as exc:
+        output(f"Could not save the recovery report: {exc}\n")
 
 
 def is_spotify_artist(url: str) -> bool:
@@ -326,20 +428,102 @@ def is_spotify_artist(url: str) -> bool:
     return parsed.hostname == "open.spotify.com" and "artist" in parsed.path.strip("/").split("/")
 
 
-def finish_download_job(job: DownloadJob, output: Callable[[str], None]) -> int:
+def finish_download_job(job: DownloadJob, output: Callable[[str], None], cancel=None) -> int:
     if job.provider == "spotDL" and any(is_spotify_artist(url) for url in job.urls):
         # Expanded artist jobs finish each album independently.
         return 0
     settings = job.settings
+    if cancel and cancel.is_set():
+        return 130
     if settings.auto_dedupe_after_download:
         sync_dir = str(resolve_sync_target(settings)) if settings.sync_enabled else None
         run_deduplicator(settings.output_dir, output, apply=True, exact_only=True, sync_dir=sync_dir)
-    return sync_output_dir(settings, output)
+    files = valid_audio_files(settings.output_dir) if job.provider == "spotDL" else None
+    marker = Path(settings.output_dir) / ".studio-release.json"
+    if files and marker.is_file():
+        files.append(marker)
+    return sync_output_dir(settings, output, files=files, cancel=cancel)
+
+
+def valid_audio_files(folder: str) -> list[Path]:
+    from mutagen import File, MutagenError
+    files = []
+    for path in Path(folder).expanduser().rglob("*"):
+        if not path.is_file() or path.suffix.casefold() not in MEDIA_SUFFIXES or DUPLICATE_REVIEW_DIR in path.parts:
+            continue
+        try:
+            media = File(path)
+            if media is not None and getattr(media.info, "length", 0) > 0:
+                files.append(path)
+        except (OSError, ValueError, MutagenError):
+            continue
+    return files
 
 
 def album_folder_name(release: dict) -> str:
-    title = re.sub(r'[<>:"/\\|?*{}\x00-\x1f]', "_", release["title"]).strip(" .")[:90] or "Untitled"
-    return f"{release.get('date', '')[:4] or 'Undated'} - {title} [{release['id']}]"
+    title = re.sub(r'[<>:"/\\|?*{}\x00-\x1f]+', " - ", release["title"])
+    title = re.sub(r"\s+", " ", title)[:90].strip(" .-") or "Untitled"
+    return f"{release.get('date', '')[:4] or 'Undated'} - {title}"
+
+
+def read_release_identity(marker: Path) -> str:
+    try:
+        info = marker.lstat()
+        if marker.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("Linked identity file")
+        data = json.loads(marker.read_text(encoding="utf-8"))
+        identity = data.get("album_id") if isinstance(data, dict) else None
+        if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9]{22}", identity):
+            raise ValueError("Invalid release ID")
+        return identity
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Invalid release identity file: {marker}. Restore it before downloading or migrating.") from error
+
+
+def release_folder_names(catalogue: dict, root: Path) -> dict[str, str]:
+    mapped, occupied = {}, set()
+    if root.exists():
+        for folder in root.iterdir():
+            occupied.add(folder.name.casefold())
+            if not folder.is_dir() or folder.is_symlink() or folder.resolve().parent != root.resolve():
+                continue
+            identity = None
+            marker = folder / ".studio-release.json"
+            if marker.is_file():
+                identity = read_release_identity(marker)
+            legacy = re.search(r" \[([A-Za-z0-9]{22})\]$", folder.name)
+            identity = identity or (legacy.group(1) if legacy else None)
+            if identity:
+                if identity in mapped:
+                    raise ValueError("A release is present in multiple folders; review the library before downloading.")
+                mapped[identity] = folder.name
+    for release in catalogue["items"]:
+        if release["id"] in mapped:
+            continue
+        base = album_folder_name(release)
+        candidate, edition = base, 2
+        while candidate.casefold() in occupied:
+            candidate = f"{base} (edition {edition})"
+            edition += 1
+        occupied.add(candidate.casefold())
+        mapped[release["id"]] = candidate
+    return mapped
+
+
+def write_release_marker(folder: Path, identity: str, label: str) -> None:
+    spotify_id(f"https://open.spotify.com/album/{identity}", "album")
+    folder.mkdir(parents=True, exist_ok=True)
+    marker = folder / ".studio-release.json"
+    if marker.exists():
+        if read_release_identity(marker) != identity:
+            raise ValueError("This album folder belongs to another release; refusing to overwrite it.")
+        return
+    temporary = folder / f".studio-release.{uuid.uuid4().hex}.tmp"
+    try:
+        temporary.write_text(json.dumps({"album_id": identity, "label": label}, indent=2), encoding="utf-8")
+        temporary.replace(marker)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def build_discography_jobs(catalogue: dict, settings: Settings, releases: list[dict] | None = None) -> list[DownloadJob]:
@@ -350,40 +534,44 @@ def build_discography_jobs(catalogue: dict, settings: Settings, releases: list[d
     if not releases:
         raise ValueError("No releases selected.")
     jobs = []
+    folders = release_folder_names(catalogue, Path(settings.output_dir).expanduser()) if settings.spotify_album_folders else {}
     for release in releases:
         spotify_id(release["url"], "album")
         copy = Settings(**asdict(settings))
         copy.mode = "audio"
         copy.provider = "spotDL"
         if settings.spotify_album_folders:
-            folder = album_folder_name(release)
+            folder = folders[release["id"]]
             copy.output_dir = str(Path(settings.output_dir).expanduser() / folder)
             copy.spotdl_template = "{disc-number}-{track-number} - {title}.{output-ext}"
             if settings.sync_enabled:
                 copy.sync_dir = str(resolve_sync_target(settings) / folder)
                 copy.sync_library_root = ""
                 copy.sync_match_output_folder = False
+        else:
+            # Flat artist downloads keep filename customization, not template subfolders.
+            filename = PureWindowsPath(settings.spotdl_template).name
+            copy.spotdl_template = filename if "{title}" in filename else DEFAULT_SPOTDL_TEMPLATE
         job = DownloadJob([release["url"]], copy, provider="spotDL", label=f"{catalogue['artist']} - {release['title']}")
+        job.release_id = release["id"] if settings.spotify_album_folders else ""
         job.command = build_spotdl_command(job.urls, copy)
         jobs.append(job)
     return jobs
 
 
 def find_ytdlp_command() -> list[str]:
-    probe = subprocess.run(
-        [sys.executable, "-m", "yt_dlp", "--version"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        **subprocess_window_kwargs(),
-    )
-    if probe.returncode == 0:
-        return [sys.executable, "-m", "yt_dlp"]
+    if importlib.util.find_spec("yt_dlp") is not None:
+        return downloader_command("yt_dlp")
 
     exe = shutil.which("yt-dlp")
     return [exe] if exe else [sys.executable, "-m", "yt_dlp"]
+
+
+def downloader_command(provider: str) -> list[str]:
+    executable = Path(sys.executable)
+    if executable.name.casefold() == "pythonw.exe" and executable.with_name("python.exe").is_file():
+        executable = executable.with_name("python.exe")
+    return [str(executable), "-u", str(Path(__file__).with_name("download_host.py").resolve()), provider]
 
 
 def youtube_search_command(query: str, offset: int, limit: int) -> list[str]:
@@ -966,7 +1154,7 @@ def resolve_sync_target(settings: Settings) -> Path:
     return infer_sync_library_root(settings) / source.name
 
 
-def sync_output_dir(settings: Settings, output: Callable[[str], None]) -> int:
+def sync_output_dir(settings: Settings, output: Callable[[str], None], files=None, cancel=None) -> int:
     if not settings.sync_enabled or not settings.sync_dir.strip():
         return 0
 
@@ -992,7 +1180,10 @@ def sync_output_dir(settings: Settings, output: Callable[[str], None]) -> int:
         return 1
     output(f"Syncing completed files from {source} to {target}\n")
 
-    for source_file in source.rglob("*"):
+    for source_file in source.rglob("*") if files is None else files:
+        if cancel and cancel.is_set():
+            output("Mirroring stopped; completed local files are preserved.\n")
+            return 130
         if not source_file.is_file() or not should_sync_file(source_file):
             continue
         relative = source_file.relative_to(source)
@@ -1044,13 +1235,14 @@ def run_command(command: list[str], output: Callable[[str], None], stop_event: t
         return 127
 
     assert process.stdout is not None
+    tree = own_process_tree(process)
     monitor_done = threading.Event()
 
     def monitor_cancellation() -> None:
         while not monitor_done.wait(0.1):
-            if not stop_event or not stop_event.is_set() or process.poll() is not None:
+            if not stop_event or not stop_event.is_set():
                 continue
-            terminate_tree(process)
+            terminate_tree(process, tree)
             return
 
     monitor = threading.Thread(target=monitor_cancellation, daemon=True)
@@ -1063,6 +1255,8 @@ def run_command(command: list[str], output: Callable[[str], None], stop_event: t
         monitor_done.set()
         monitor.join()
         process.stdout.close()
+        if tree is not None:
+            tree.close()
     if stop_event and stop_event.is_set():
         output("Cancelled by user.\n")
         return 130

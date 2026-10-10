@@ -15,6 +15,9 @@ class UtilityTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        reports = patch.object(app, "CONFIG_DIR", self.root / "config")
+        reports.start()
+        self.addCleanup(reports.stop)
         self.settings = app.Settings(output_dir=str(self.root / "local"), sponsorblock=False)
 
     def test_auto_routes_only_real_spotify_hosts(self):

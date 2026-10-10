@@ -164,6 +164,8 @@ def run_cli(args: argparse.Namespace) -> int:
                 result = code
                 if code == 130:
                     break
+                if job.completed_files:
+                    core.finish_download_job(job, core.cli_output)
                 continue
             sync_code = core.finish_download_job(job, core.cli_output)
             if sync_code:
@@ -179,6 +181,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.urls or args.dedupe or args.dedupe_apply or args.sync_only or args.discography:
         return run_cli(args)
     try:
+        from .processes import hide_child_windows
+        hide_child_windows()
         from .gui import StudioApp
         app = StudioApp()
     except Exception:

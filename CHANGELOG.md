@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.1 - 2026-10-10
+
+- Expose shared Album folders / One folder choices in Simple, Advanced and the artist browser, preserving saved preferences and queued-job snapshots.
+- Keep flat artist filenames inside the chosen local/NAS roots even when custom templates contain subfolders; retain separate release statuses and optional shared archives.
+- Expand layout, native filename, mirror idempotence, persistence, CLI and retry tests.
+- Expand directly pasted artist links into visible release jobs before downloading, with cancellable discovery and separate active/pending counts in both views.
+- Prevent Spotify discovery's import-time native shell popup and hide dependency shell calls in GUI/background hosts.
+- Keep releases private and marked prerelease pending full artist-download acceptance; the old 0.2.0 ZIP does not contain these fixes.
+- Prepare discography queues off the UI thread and close the browser after successful queueing.
+- Hide nested synchronous/async FFmpeg and runtime children; retain Windows process-tree ownership after parent exit.
+- Stop active and pending downloads together without automatic restart; distinguish pending-only cancellation.
+- Use English YouTube Music lookup as a scoped compatibility fix while retaining native spotDL matching.
+- Surface original extraction errors, persist recovery reports, retry failed tracks and mirror validated audio from partial albums.
+- Use readable release folders with internal edition identity; add hash-validated, reversible local/NAS migration tooling.
+- Add responsive GUI, child-process, partial-download, naming and migration safety regressions.
+
 ## 0.2.0 - 2026-10-10
 
 - Added double-click setup with optional Spotify selection, shortcuts, clearer repair guidance and JavaScript runtime feedback.

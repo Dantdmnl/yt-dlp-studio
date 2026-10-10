@@ -33,7 +33,7 @@ class MusicBrowser(tk.Toplevel):
         self.limit = tk.StringVar(value="25")
         settings = owner._settings_from_ui()
         self.destination = tk.StringVar(value=settings.output_dir)
-        self.album_folders = tk.BooleanVar(value=settings.spotify_album_folders)
+        self.album_folders = owner._vars["spotify_album_folders"]
         self.all_editions = tk.BooleanVar(value=settings.spotify_all_editions)
         self.filters = {kind: tk.BooleanVar(value=True) for kind in ("album", "single", "compilation")}
         self.status = tk.StringVar(value="")
@@ -96,7 +96,13 @@ class MusicBrowser(tk.Toplevel):
         ttk.Label(folder, text="Save to").grid(row=0, column=0, padx=(0, 12))
         ttk.Entry(folder, textvariable=self.destination).grid(row=0, column=1, sticky="ew")
         ttk.Button(folder, text="Browse", command=self.browse).grid(row=0, column=2, padx=8)
-        ttk.Checkbutton(folder, text="Album folders", variable=self.album_folders).grid(row=1, column=1, sticky="w", pady=8)
+        ttk.Label(folder, text="Artist layout").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=8)
+        layout = ttk.Frame(folder)
+        layout.grid(row=1, column=1, sticky="w", pady=8)
+        self.album_layout = ttk.Radiobutton(layout, text="Album folders", variable=self.album_folders, value=True)
+        self.album_layout.grid(row=0, column=0)
+        self.flat_layout = ttk.Radiobutton(layout, text="One folder", variable=self.album_folders, value=False)
+        self.flat_layout.grid(row=0, column=1, padx=(12, 0))
         actions = ttk.Frame(self, padding=12)
         actions.grid(row=6, column=0, sticky="ew")
         actions.columnconfigure(0, weight=1)
@@ -299,15 +305,34 @@ class MusicBrowser(tk.Toplevel):
             self.load_artist(artists[0]["url"])
             return
         try:
-            count = self.owner.queue_discovery_items(items, self.destination.get(), self.album_folders.get(), self.catalogue)
-            self.status.set(f"Queued {count} download job(s)")
+            self.busy = True
+            self.cancel_event = threading.Event()
+            self.status.set("Preparing download jobs...")
+            self.all_button.configure(state="disabled")
+            self.selected_button.configure(state="disabled")
+            self.cancel_button.configure(state="normal")
+            self.owner.queue_discovery_items(items, self.destination.get(), self.album_folders.get(), self.catalogue,
+                                             on_done=self.queued, cancel=self.cancel_event)
         except (ValueError, OSError) as exc:
+            self.busy = False
+            self.render()
             messagebox.showerror("Music discovery", str(exc), parent=self)
 
-    def close(self):
-        if self.busy:
-            self.cancel_event.set()
-            self.after(100, self.close)
+    def queued(self, count, error):
+        if not self.winfo_exists():
             return
+        self.busy = False
+        if error:
+            self.status.set(error)
+            self.cancel_button.configure(state="disabled")
+            self.render()
+            self.status.set(error)
+            return
+        self.owner.status_var.set(f"Queued {count} download jobs")
+        self.owner.lift()
+        self.close()
+
+    def close(self):
+        self.cancel_event.set()
         self.after_cancel(self.poll_timer)
         self.destroy()

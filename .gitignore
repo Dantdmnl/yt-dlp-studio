@@ -43,6 +43,7 @@ startup-error.log
 /library/
 download-archive.txt
 spotdl-archive.txt
+.studio-release.json
 _duplicates_review/
 *.mp3
 *.m4a

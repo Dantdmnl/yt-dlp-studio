@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .processes import terminate_tree, window_kwargs
+from .processes import hide_child_windows, own_process_tree, terminate_tree, window_kwargs
 
 
 def spotify_id(value: str, kind: str) -> str:
@@ -180,6 +180,7 @@ def run_json_command(command: list[str], cancel: threading.Event | None = None, 
     environment = dict(os.environ, PYTHONIOENCODING="utf-8")
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, cwd=cwd,
                                text=True, encoding="utf-8", errors="replace", **window_kwargs())
+    tree = own_process_tree(process)
     deadline = time.monotonic() + timeout
     try:
         while True:
@@ -199,9 +200,13 @@ def run_json_command(command: list[str], cancel: threading.Event | None = None, 
             raise ValueError("Discovery returned an unexpected response.")
         return data
     finally:
-        if process.poll() is None:
-            terminate_tree(process)
-        process.communicate()
+        if tree is not None or process.poll() is None:
+            terminate_tree(process, tree)
+        try:
+            process.communicate()
+        finally:
+            if tree is not None:
+                tree.close()
 
 
 def request_catalogue(operation: str, query: str, *, kind: str = "tracks", offset: int = 0,
@@ -214,6 +219,7 @@ def request_catalogue(operation: str, query: str, *, kind: str = "tracks", offse
 
 
 def main() -> int:
+    hide_child_windows()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=["search", "artist", "inspect"])
     parser.add_argument("query")

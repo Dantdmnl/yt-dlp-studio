@@ -37,7 +37,7 @@ Spotify support is required. Prefer the GUI release browser when reviewing editi
 .\.venv\Scripts\python.exe -m ytdlp_studio --discography "https://open.spotify.com/artist/ARTIST_ID" --flat-discography --no-archive --no-sync
 ```
 
-Default output uses per-release folders; `--all-editions` includes alternate editions and `--flat-discography` opts into a shared folder. See the [user guide](user-guide.md) for catalogue scope and intentionally repeated recordings.
+Default output uses per-release folders; `--all-editions` includes alternate editions and `--flat-discography` selects the GUI's One folder layout. Flat artist jobs share their output directory, mirror target and optional archive, while retaining separate release status. Existing files are skipped, not overwritten; older downloads are not moved. See the [user guide](user-guide.md) for filename collisions, catalogue scope and intentionally repeated recordings.
 
 ## Library Maintenance
 

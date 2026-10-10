@@ -46,6 +46,8 @@ jobs:
         run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_local.py
       - name: SponsorBlock audio cutting
         run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_sponsorblock.py
+      - name: Native hidden Spotify converters
+        run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_spotdl.py
       - name: Coverage baseline
         run: .\.venv\Scripts\python.exe -m coverage report --fail-under=60
       - name: Validate source release

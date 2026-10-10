@@ -34,6 +34,13 @@ def main(screenshots=True):
         window.update()
         capture("simple.png")
         assert not window.log.winfo_ismapped()
+        assert window.queue_summary_label.winfo_ismapped()
+        assert not window.copy_log_button.winfo_ismapped()
+        window.simple_one_folder.invoke()
+        assert not window._settings_from_ui().spotify_album_folders
+        window.update()
+        capture("simple-one-folder.png")
+        window.simple_album_folders.invoke()
         assert str(window.settings_panel) not in window.main_pane.panes()
         window._vars["sync_dir"].set("G:/Multimedia/Music")
         window._vars["sync_enabled"].set(True)
@@ -68,7 +75,7 @@ def main(screenshots=True):
         window.provider_var.set("Auto")
         window.simple_mode_var.set(False)
         window.apply_view_mode()
-        for name, settings_index, search in (("links", 0, False), ("advanced", 4, False), ("search", 0, True), ("sync", 2, False), ("cleanup", 3, False)):
+        for name, settings_index, search in (("links", 0, False), ("library", 1, False), ("advanced", 4, False), ("search", 0, True), ("sync", 2, False), ("cleanup", 3, False)):
             window.settings_tabs.select(settings_index)
             intake = window.url_listbox.master.master
             intake.select(1 if search else 0)
@@ -132,16 +139,22 @@ def main(screenshots=True):
         assert str(browser.all_button["text"]) == "Download Filtered Releases"
         browser.filters["album"].set(True)
         browser.render()
+        window.update()
+        capture("discography.png", browser)
         window._vars["sync_enabled"].set(True)
         with patch.object(window, "enqueue_jobs") as enqueue, patch.object(app, "build_spotdl_command", return_value=["spotdl"]):
             browser.download_selected(all_releases=True)
+            deadline = time.monotonic() + 5
+            while not enqueue.called and time.monotonic() < deadline:
+                window.update()
+                time.sleep(0.02)
+            assert enqueue.called, "Artist preparation did not reach the queue"
             queued = enqueue.call_args.args[0]
             assert len(queued) == 5
             assert Path(queued[0].settings.output_dir).parent == Path(sample.output_dir)
             assert app.resolve_sync_target(queued[0].settings).parent == Path("G:/Multimedia/Music/ArtistName")
-        browser.render()
-        window.update()
-        capture("discography.png", browser)
+        assert not browser.winfo_exists(), "Browser must close after queueing"
+        browser = window.open_music_browser()
         browser.engine.set("YouTube")
         browser.query.set("Sample Song")
         with patch.object(music_browser, "run_json_command", return_value={"entries": [{"url": "https://youtube.com/watch?v=test", "title": "Sample Song", "duration": 125}]}), patch.object(window, "youtube_search_command", return_value=["yt-dlp"]):
