@@ -46,7 +46,8 @@ from pathlib import Path
 from unittest.mock import patch
 from ytdlp_studio import backend as core
 from ytdlp_studio.gui import StudioApp
-assert Path(core.__file__).resolve().is_relative_to(Path.cwd())
+package_root = Path.cwd().resolve()
+assert Path(core.__file__).resolve().is_relative_to(package_root), (core.__file__, str(package_root))
 settings = core.Settings(output_dir=str(Path.cwd() / 'sample library'),
                          watch_clipboard=False, auto_preview=False)
 with patch.object(core, 'load_settings', return_value=settings), \\
