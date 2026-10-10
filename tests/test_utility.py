@@ -1,3 +1,4 @@
+import ctypes
 import sys
 import tempfile
 import threading
@@ -143,6 +144,59 @@ class UtilityTests(unittest.TestCase):
         with patch.object(app.shutil, "copy2", side_effect=OSError("NAS offline")):
             self.assertEqual(app.sync_output_dir(self.settings, lambda _: None), 1)
         self.assertEqual((target / "track.mp3").read_bytes(), b"old music")
+
+    def test_explicit_sync_files_resolve_aliases_and_preserve_names(self):
+        source = Path(self.settings.output_dir)
+        source.mkdir()
+        prefix = self.root / "path-alias"
+        prefix.mkdir()
+        (source / "track.mp3").write_bytes(b"music")
+        (source / ".studio-release.json").write_text('{"release_id": "fixture"}')
+        self.settings.sync_enabled = True
+        self.settings.sync_dir = str(self.root / "mirror")
+        self.settings.sync_match_output_folder = False
+        files = [prefix / ".." / "local" / name for name in ("track.mp3", ".studio-release.json")]
+        original_settings = self.settings.output_dir
+        self.assertEqual(app.sync_output_dir(self.settings, lambda _: None, files=files), 0)
+        self.assertEqual((self.root / "mirror" / "track.mp3").read_bytes(), b"music")
+        self.assertEqual((self.root / "mirror" / ".studio-release.json").read_text(), '{"release_id": "fixture"}')
+        self.assertEqual(self.settings.output_dir, original_settings)
+
+    def test_explicit_sync_rejects_files_resolving_outside_library(self):
+        source = Path(self.settings.output_dir)
+        source.mkdir()
+        valid = source / "track.mp3"
+        valid.write_bytes(b"music")
+        outside = self.root / "outside.mp3"
+        outside.write_bytes(b"private")
+        self.settings.sync_enabled = True
+        self.settings.sync_dir = str(self.root / "mirror")
+        self.settings.sync_match_output_folder = False
+        output = []
+        files = [source / ".." / outside.name, valid]
+        self.assertEqual(app.sync_output_dir(self.settings, output.append, files=files), 1)
+        self.assertEqual(outside.read_bytes(), b"private")
+        self.assertEqual([file.name for file in (self.root / "mirror").rglob("*")], [valid.name])
+        self.assertIn("could not validate library file", "".join(output))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows path aliases")
+    def test_explicit_sync_accepts_windows_short_path_alias(self):
+        source = Path(self.settings.output_dir)
+        source.mkdir()
+        media = source / "long track filename.mp3"
+        media.write_bytes(b"music")
+        get_short_path = ctypes.windll.kernel32.GetShortPathNameW
+        get_short_path.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+        get_short_path.restype = ctypes.c_uint
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = get_short_path(str(media), buffer, len(buffer))
+        if not length or length >= len(buffer) or buffer.value == str(media):
+            self.skipTest("8.3 path aliases are unavailable on this volume")
+        self.settings.sync_enabled = True
+        self.settings.sync_dir = str(self.root / "mirror")
+        self.settings.sync_match_output_folder = False
+        self.assertEqual(app.sync_output_dir(self.settings, lambda _: None, files=[Path(buffer.value)]), 0)
+        self.assertEqual((self.root / "mirror" / media.name).read_bytes(), b"music")
 
     def test_nested_mirror_is_rejected(self):
         source = Path(self.settings.output_dir)

@@ -5,6 +5,7 @@
 - Expose shared Album folders / One folder choices in Simple, Advanced and the artist browser, preserving saved preferences and queued-job snapshots.
 - Keep flat artist filenames inside the chosen local/NAS roots even when custom templates contain subfolders; retain separate release statuses and optional shared archives.
 - Expand layout, native filename, mirror idempotence, persistence, CLI and retry tests.
+- Resolve Windows short-path aliases before mirroring, preserve readable filenames and reject files outside the chosen library.
 - Expand directly pasted artist links into visible release jobs before downloading, with cancellable discovery and separate active/pending counts in both views.
 - Prevent Spotify discovery's import-time native shell popup and hide dependency shell calls in GUI/background hosts.
 - Keep releases private and marked prerelease pending full artist-download acceptance; the old 0.2.0 ZIP does not contain these fixes.

@@ -232,8 +232,9 @@ class DiscographyJobTests(unittest.TestCase):
             (folder / "spotdl-archive.txt").write_text("test archive", encoding="utf-8")
             return 0
 
+        output = []
         with patch.object(app, "request_catalogue", return_value=self.collection), patch.object(app, "run_command", side_effect=download_fixture):
-            self.assertEqual(app.run_download_job(job, lambda _: None), 0)
+            self.assertEqual(app.run_download_job(job, output.append), 0, "".join(output))
         mirrored = list((self.root / "NAS" / "Artist").rglob("track.wav"))
         self.assertEqual(len(mirrored), 2)
         self.assertEqual({file.parent.name for file in mirrored}, set(app.release_folder_names(self.collection, self.root / "Artist").values()))

@@ -1186,7 +1186,13 @@ def sync_output_dir(settings: Settings, output: Callable[[str], None], files=Non
             return 130
         if not source_file.is_file() or not should_sync_file(source_file):
             continue
-        relative = source_file.relative_to(source)
+        try:
+            source_file = source_file.resolve()
+            relative = source_file.relative_to(source)
+        except (OSError, ValueError) as exc:
+            failed += 1
+            output(f"Sync warning: could not validate library file {source_file}: {exc}\n")
+            continue
         if DUPLICATE_REVIEW_DIR in relative.parts:
             continue
         target_file = target / relative
