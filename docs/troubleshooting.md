@@ -1,0 +1,55 @@
+# Troubleshooting And Updates
+
+## Setup Or Launch Fails
+
+Extract the whole zip, including `ytdlp_studio`, into a writable, permanent folder. Double-click `Setup.cmd` and read the visible setup result. You need Windows 10+ (64-bit), Python 3.10+, internet access and access to package/media-tool download hosts. Setup uses a local `.venv`, not your global Python packages.
+
+If Windows blocks downloaded scripts, inspect the files and allow them only if you trust their source. On managed computers, follow your administrator's policy rather than bypassing organizational controls. `Setup.cmd` supplies an execution policy for its own PowerShell process; it does not change the machine's policy.
+
+If script association prevents the silent VBS launcher opening, launch from PowerShell in the app folder:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\run-gui.ps1
+```
+
+For a visible diagnostic launch:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\run-gui.ps1 -Foreground
+```
+
+Startup error details are saved to `%APPDATA%\ytdlp-studio\startup-error.log`. Review logs for private paths, links and tokens before sharing them.
+
+## YouTube Or Conversion Fails
+
+Setup installs a complete FFmpeg/ffprobe pair, downloading and verifying the Windows build when needed. Tools live under `.venv\tools\ffmpeg`; a complete pair from PATH is also supported. An FFmpeg-only fallback may convert audio but cannot perform SponsorBlock cutting.
+
+Run Setup.cmd again to repair dependencies or tools. For JavaScript challenge failures, install [Deno](https://docs.deno.com/runtime/getting_started/installation/) or [Node.js](https://nodejs.org/en/download), make it available on PATH and restart the app. The utility detects supported runtimes; setup does not install a system-wide JavaScript runtime for you.
+
+Use Details to inspect failed jobs. Service availability, removed media, access restrictions and backend changes can all cause errors. Previews and downloads are separate requests; a successful preview does not guarantee a successful download.
+
+## Spotify Search Or Artist Downloads Fail
+
+Run Setup.cmd again and answer Yes to Spotify support, or enable installation from Advanced settings. Core yt-dlp downloads work without this optional component.
+
+Use a full `https://open.spotify.com/artist/...` link for artist preview/review. Shortened links can be submitted to the backend but are not supported by every preview feature. Failed/incomplete catalogue discovery should be retried, not treated as a complete discography. Upstream interfaces can change; do not share login cookies or credentials to work around them.
+
+## Mirror Is Unavailable
+
+Open the destination in File Explorer and verify your Windows account can create files there. Check the selected root and folder-matching option. Completed local downloads remain available if the NAS is offline. Retry mirroring once the share is reachable.
+
+## Update Or Move The App
+
+Close the app, back up anything important, extract the new release over the existing app folder and run Setup.cmd again. Select Spotify again if you use it. Personal settings stay in `%APPDATA%\ytdlp-studio`; setup does not remove your music or NAS files.
+
+Virtual environments are not portable. After relocating the app, recreate only its environment:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Recreate -Spotify -Shortcuts
+```
+
+Omit `-Spotify` if you do not need it. `-Recreate` removes the app's `.venv` and rebuilds dependencies; do not use it as a routine update step. If Python was removed or moved, install a supported Python first. Existing shortcuts must point at the new folder.
+
+## Report A Bug
+
+Include the app version, Windows/Python versions, which provider was used, steps to reproduce and the relevant redacted Details/startup error. State whether mirroring, archives and SponsorBlock were enabled. Never attach cookie exports, credentials, personal settings or your music library.

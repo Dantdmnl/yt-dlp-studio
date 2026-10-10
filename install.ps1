@@ -1,6 +1,8 @@
 param(
     [switch]$Recreate,
     [switch]$Shortcuts,
+    [switch]$Spotify,
+    [switch]$Interactive,
     [switch]$NoPause
 )
 
@@ -34,7 +36,8 @@ function Stop-WithHelp {
     Write-Host $Message -ForegroundColor Red
     Write-Host ""
     Write-Host "If this keeps happening, run this command from the project folder:" -ForegroundColor Yellow
-    Write-Host "  powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Recreate" -ForegroundColor Yellow
+    Write-Host "  powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1" -ForegroundColor Yellow
+    Write-Host "Use -Recreate only to replace a broken or moved virtual environment." -ForegroundColor DarkGray
     Wait-BeforeExit
     exit 1
 }
@@ -141,6 +144,14 @@ try {
         Stop-WithHelp "requirements.txt was not found at $requirements"
     }
 
+    if ($Interactive -and -not $Spotify) {
+        Write-Host ""
+        Write-Host "Spotify support adds track, album, playlist and artist downloads." -ForegroundColor White
+        Write-Host "It is optional and can be added later by running Setup.cmd again." -ForegroundColor DarkGray
+        $answer = Read-Host "Include Spotify support? [y/N]"
+        $Spotify = $answer.Trim() -match "^(y|yes)$"
+    }
+
     Write-Step "Checking virtual environment"
     $venvHealthy = Test-Venv
     if ((Test-Path $venv) -and ($Recreate -or -not $venvHealthy)) {
@@ -150,6 +161,12 @@ try {
             Write-Detail "Existing .venv is missing or points at a Python install that no longer exists."
         }
         Write-Detail "Removing $venv"
+        $resolvedVenv = Get-Item -LiteralPath $venv -Force
+        $projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
+        if ($resolvedVenv.Name -ne ".venv" -or $resolvedVenv.Parent.FullName.TrimEnd('\') -ne $projectRoot -or
+            ($resolvedVenv.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+            Stop-WithHelp "Refusing to remove an environment outside this project or through a junction. Rename it manually, then run setup again."
+        }
         Remove-Item -LiteralPath $venv -Recurse -Force
         $venvHealthy = $false
     }
@@ -192,6 +209,23 @@ try {
     }
     Write-Done "Dependencies installed"
 
+    Write-Step "Checking FFmpeg and ffprobe for SponsorBlock cutting"
+    & $venvPython (Join-Path $PSScriptRoot "media_tools.py") --install
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithHelp "FFmpeg/ffprobe setup failed. Run setup again to enable SponsorBlock cutting."
+    }
+    Write-Done "FFmpeg and ffprobe are ready"
+
+    if ($Spotify) {
+        Write-Step "Installing optional Spotify support"
+        $spotifyRequirements = Join-Path $PSScriptRoot "requirements-spotify.txt"
+        & $venvPython -m pip install -r $spotifyRequirements
+        if ($LASTEXITCODE -ne 0) {
+            Stop-WithHelp "Spotify support installation failed. Core downloads remain available."
+        }
+        Write-Done "spotDL installed in the project .venv"
+    }
+
     if ($Shortcuts) {
         Write-Step "Creating Windows shortcuts"
         if (-not (Test-Path $launcher)) {
@@ -207,8 +241,14 @@ try {
 
     Write-Host ""
     Write-Host "Setup complete." -ForegroundColor Green
-    Write-Host "Start the app with:" -ForegroundColor White
-    Write-Host "  .\run-gui.ps1" -ForegroundColor White
+    Write-Host "Start yt-dlp Studio from the Desktop/Start Menu shortcut, or double-click:" -ForegroundColor White
+    Write-Host "  yt-dlp-studio.vbs" -ForegroundColor White
+    Write-Host "Normal launches do not leave a terminal window open." -ForegroundColor DarkGray
+    if (-not (Get-Command deno -ErrorAction SilentlyContinue) -and -not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Host ""
+        Write-Host "YouTube may also need a JavaScript runtime. Install Deno or Node.js, then restart the app." -ForegroundColor Yellow
+        Write-Host "See docs\troubleshooting.md for details." -ForegroundColor Yellow
+    }
     if (-not $Shortcuts) {
         Write-Host ""
         Write-Host "Optional: run .\install.ps1 -Shortcuts to add Desktop and Start Menu shortcuts." -ForegroundColor DarkGray

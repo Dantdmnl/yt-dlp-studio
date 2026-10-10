@@ -6,11 +6,21 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  checks:
+    uses: ./.github/workflows/test.yml
+
   package:
+    needs: checks
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Check out repository
@@ -19,32 +29,19 @@ jobs:
       - name: Build release archive
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
-          $staging = Join-Path $env:RUNNER_TEMP "yt-dlp-studio-$version"
-          $archive = Join-Path $env:RUNNER_TEMP "yt-dlp-studio-$version.zip"
-          New-Item -ItemType Directory -Path $staging | Out-Null
-
-          $exclude = @(
-            ".git",
-            ".github",
-            ".venv",
-            "__pycache__",
-            "build",
-            "dist"
-          )
-
-          Get-ChildItem -Force | Where-Object {
-            $exclude -notcontains $_.Name
-          } | Copy-Item -Destination $staging -Recurse -Force
-
-          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $archive -Force
+          $notes = Join-Path $env:RUNNER_TEMP "RELEASE_NOTES.md"
+          python tools/build_release.py --output "$env:RUNNER_TEMP" --tag "${{ github.ref_name }}" --notes "$notes"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $archive = Join-Path $env:RUNNER_TEMP "yt-dlp-studio-${{ github.ref_name }}.zip"
           "ARCHIVE=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CHECKSUM=$archive.sha256" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_NOTES=$notes" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" "$env:ARCHIVE" `
+          gh release create "${{ github.ref_name }}" "$env:ARCHIVE" "$env:CHECKSUM" `
             --title "yt-dlp Studio ${{ github.ref_name }}" `
-            --notes-file CHANGELOG.md
+            --verify-tag --notes-file "$env:RELEASE_NOTES"

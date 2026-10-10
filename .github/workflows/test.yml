@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  utility:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+        requirements: [requirements.txt, requirements-spotify.txt]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: "requirements*.txt"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r ${{ matrix.requirements }}
+          .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+      - name: Static checks
+        run: .\.venv\Scripts\python.exe -m ruff check .
+      - name: Install complete media tools
+        run: .\.venv\Scripts\python.exe media_tools.py --install
+      - name: Regression checks
+        run: .\.venv\Scripts\python.exe -B -m coverage run -m unittest discover -s tests -v
+      - name: GUI workflow regression
+        run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/gui_smoke.py --no-screenshots
+      - name: Real audio conversion and mirroring
+        run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_local.py
+      - name: SponsorBlock audio cutting
+        run: .\.venv\Scripts\python.exe -B -m coverage run --append tests/integration_sponsorblock.py
+      - name: Coverage baseline
+        run: .\.venv\Scripts\python.exe -m coverage report --fail-under=60
+      - name: Validate source release
+        run: .\.venv\Scripts\python.exe tools/build_release.py --output dist

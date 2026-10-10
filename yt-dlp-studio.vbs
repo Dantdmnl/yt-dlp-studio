@@ -35,20 +35,30 @@ If Not fso.FileExists(venvPython) Then
         WScript.Quit 0
     End If
 
-    command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & installScript & """ -NoPause"
+    command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & installScript & """ -Interactive -Shortcuts"
+    On Error Resume Next
     exitCode = shell.Run(command, 1, True)
+    If Err.Number <> 0 Then
+        MsgBox "Could not open setup." & vbCrLf & vbCrLf & Err.Description & vbCrLf & _
+            "Try double-clicking Setup.cmd in this folder.", vbCritical, "yt-dlp Studio setup"
+        WScript.Quit 1
+    End If
+    On Error GoTo 0
     If exitCode <> 0 Or Not fso.FileExists(venvPython) Then
         MsgBox "Setup did not finish successfully." & vbCrLf & vbCrLf & _
-            "Open PowerShell in this folder and run:" & vbCrLf & _
-            ".\install.ps1 -Recreate", vbCritical, "yt-dlp Studio setup"
+            "Double-click Setup.cmd in this folder to try again." & vbCrLf & _
+            "See docs\troubleshooting.md for repair steps.", vbCritical, "yt-dlp Studio setup"
         WScript.Quit 1
     End If
 End If
 
 command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & runScript & """"
-exitCode = shell.Run(command, 0, False)
-If exitCode <> 0 Then
-    MsgBox "yt-dlp Studio could not be launched." & vbCrLf & vbCrLf & _
-        "Try running .\run-gui.ps1 -Foreground from PowerShell for more details.", vbCritical, "yt-dlp Studio"
-    WScript.Quit exitCode
+On Error Resume Next
+exitCode = shell.Run(command, 0, True)
+If Err.Number <> 0 Then
+    MsgBox "Could not start the PowerShell launcher." & vbCrLf & vbCrLf & _
+        Err.Description, vbCritical, "yt-dlp Studio"
+    WScript.Quit 1
 End If
+On Error GoTo 0
+WScript.Quit exitCode
