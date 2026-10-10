@@ -38,7 +38,7 @@ Download Discography prepares jobs in the background and closes the browser afte
 
 ## Optional NAS Mirroring
 
-Choose a local library, enable Mirror to NAS and select the second library root. With folder matching enabled, local `D:\Music\ArtistName` and mirror root `\\NAS\Media\Music` resolve to `\\NAS\Media\Music\ArtistName`. The displayed mirror field follows the local artist/project folder and retains the path style you selected. Artist downloads keep album subfolders on both sides.
+Choose a local library, enable Mirror to NAS and select the second library root. With folder matching enabled, local `D:\Music\ArtistName` and mirror root `\\NAS\Media\Music` resolve to `\\NAS\Media\Music\ArtistName`. The displayed mirror field follows the local artist/project folder and retains the path style you selected. Artist layout applies on both sides: Album folders keeps matching release subfolders; One folder uses the artist directory directly.
 
 Disable folder matching to copy directly into the selected mirror directory. Local and mirror paths must be separate. Missing destination folders are created when needed; the share must be accessible with your Windows account.
 
