@@ -1,5 +1,17 @@
 # User Guide
 
+## Legal Use
+
+yt-dlp Studio does not grant permission to download media. Only download,
+convert or mirror material when you are authorized to do so, the source
+explicitly permits it, or a lawful exception applies in your jurisdiction.
+YouTube, Spotify, spotDL, yt-dlp and other services have separate terms.
+
+Spotify provides catalogue metadata. spotDL may search an external service for
+matching audio; that does not make the download authorized or mean that the
+audio came from Spotify. Check the source's license and the intended use before
+keeping or sharing a file.
+
 ## Everyday Downloads
 
 The app starts in Simple mode. Paste a supported link and optionally inspect its title, source, duration or collection size before downloading. Previews fetch metadata only. Editing a link cancels the previous preview; preview errors do not prevent a download attempt. Disable automatic preview or clipboard capture in Advanced if you prefer manual input.

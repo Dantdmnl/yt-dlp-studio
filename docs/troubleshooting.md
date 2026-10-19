@@ -4,6 +4,11 @@
 
 Extract the whole zip, including `ytdlp_studio`, into a writable, permanent folder. Double-click `Setup.cmd` and read the visible setup result. You need Windows 10+ (64-bit), Python 3.10+, internet access and access to package/media-tool download hosts. Setup uses a local `.venv`, not your global Python packages.
 
+The application is a general-purpose client and does not grant rights to
+downloaded media. Use it only for material you are authorized to download,
+convert or mirror. You are responsible for following local law, source
+licenses and platform terms, including the terms of YouTube and Spotify.
+
 If Windows blocks downloaded scripts, inspect the files and allow them only if you trust their source. On managed computers, follow your administrator's policy rather than bypassing organizational controls. `Setup.cmd` supplies an execution policy for its own PowerShell process; it does not change the machine's policy.
 
 Setup installs yt-dlp without its optional Brotli package. Some new Python versions

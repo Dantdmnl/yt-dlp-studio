@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 - 2026-10-19
+
+- Clarify that downloads, conversion and mirroring require user authorization and remain subject to local law, source licenses and platform terms.
+- Explain that Spotify metadata lookup does not authorize downloading matching audio from external services.
+- Add official third-party terms guidance to the README, user guide, CLI documentation and troubleshooting guide.
+
 ## 0.2.2 - 2026-10-19
 
 - Avoid native C++ builds during setup by omitting yt-dlp's optional Brotli dependency from core requirements.

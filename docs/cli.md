@@ -2,6 +2,10 @@
 
 Run commands from the app folder after setup. The CLI shares saved GUI settings; flags override them for this invocation without saving those overrides. Explicitly select output/mirroring for scripts. Quote links, paths and presets.
 
+Only use these commands for media you are authorized to download, convert or
+mirror. Platform terms and source licenses still apply; the tool does not grant
+rights to the resulting files.
+
 ```powershell
 .\.venv\Scripts\python.exe -B -m ytdlp_studio --help
 .\.venv\Scripts\python.exe -B -m ytdlp_studio --version
@@ -29,7 +33,9 @@ Folder matching is on by default: `--sync-dir "\\NAS\Media\Music"` with local `D
 
 ## Artist Releases
 
-Spotify support is required. Prefer the GUI release browser when reviewing editions before downloading:
+Spotify support is required. Spotify lookup supplies catalogue metadata; it
+does not authorize downloading matching audio from an external service. Prefer
+the GUI release browser when reviewing editions before downloading:
 
 ```powershell
 .\.venv\Scripts\python.exe -m ytdlp_studio --discography "https://open.spotify.com/artist/ARTIST_ID" -o "D:\Music\ArtistName" --sync-dir "\\NAS\Media\Music"

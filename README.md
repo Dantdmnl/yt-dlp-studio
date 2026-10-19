@@ -2,9 +2,9 @@
 
 A Windows utility for downloading music and video, reviewing Spotify artist releases, and optionally mirroring your library to a NAS. One queue, a simple default view, and advanced controls when you need them.
 
-Version: **0.2.2**. Distributed as a **source zip**, not a standalone executable.
+Version: **0.2.3**. Distributed as a **source zip**, not a standalone executable.
 
-**Release status:** private prerelease testing. Version 0.2.2 includes setup, JavaScript-runtime detection and launcher feedback improvements. Backend availability and full-discography downloads still need real-world acceptance.
+**Release status:** public prerelease testing. Version 0.2.3 clarifies legal-use guidance and third-party terms. Backend availability and full-discography downloads still need real-world acceptance.
 
 ## See It In Action
 
@@ -37,7 +37,7 @@ For YouTube, also have **Deno or Node.js 22+** on PATH. Interactive setup can op
 2. Choose Audio/Video, Format, Quality and **Save to**.
 3. Click **Download**. Track progress in the queue; retry a failed job without redoing successful ones.
 
-Spotify support accepts tracks, albums, playlists and artist links. To review an artist's catalogue, search Spotify artists and open **Browse Discography**. Select releases or download the visible collection. Spotify supplies metadata; spotDL finds matching audio elsewhere, not from Spotify's audio stream.
+Spotify support accepts tracks, albums, playlists and artist links. To review an artist's catalogue, search Spotify artists and open **Browse Discography**. Select releases or download the visible collection. Spotify supplies catalogue metadata; spotDL may search external services for matching audio, not Spotify's audio stream. This metadata does not grant permission to download or use that audio.
 
 **SponsorBlock** removes community-tagged sponsors, outros and non-music sections when available. **Mirror to NAS** is optional: downloads finish locally first, then completed files are copied to the matching destination folder.
 
@@ -64,4 +64,17 @@ Settings live in `%APPDATA%\ytdlp-studio`, outside the app folder. Downloads go 
 
 To update, close the app, extract the new release over its existing folder, then run `Setup.cmd` again. Do not move an installed `.venv`; see the repair instructions if you relocate the app.
 
-Use only material you have permission to download. Source code is provided under the [MIT license](LICENSE); external services and dependencies have their own terms and licenses.
+## Legal Use And Third-Party Terms
+
+yt-dlp Studio is a general-purpose client. Only download, convert or mirror
+material when you have permission, the source explicitly allows it, or a lawful
+exception applies in your jurisdiction. The project does not grant rights to
+downloaded media and does not provide legal advice.
+
+YouTube, Spotify, yt-dlp, spotDL and other services and dependencies have
+separate terms and licenses. Spotify metadata lookup does not authorize
+downloading matching audio from another service. Review the relevant source
+license and platform terms before downloading or sharing anything.
+
+Source code is provided under the [MIT license](LICENSE). External services and
+dependencies have their own terms and licenses.
