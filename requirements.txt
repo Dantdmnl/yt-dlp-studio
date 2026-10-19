@@ -1,4 +1,13 @@
-yt-dlp[default]>=2026.6.9
+# Keep yt-dlp's default runtime helpers, but do not request the Brotli extra.
+# Brotli currently has no Windows wheel for some new Python versions and pip
+# would otherwise try to build it with Microsoft Visual C++ during setup.
+yt-dlp>=2026.6.9
+certifi
+pycryptodomex
+requests>=2.32.2,<3
+urllib3>=2.0.2,<3
+websockets>=13
+yt-dlp-ejs>=0.8,<1
 imageio-ffmpeg>=0.5.1
 ttkbootstrap>=1.10.1,<2
 mutagen>=1.47,<2

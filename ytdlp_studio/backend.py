@@ -607,6 +607,10 @@ def find_js_runtime() -> tuple[str, str] | None:
             key = "quickjs" if name == "qjs" else name
             return key, exe
 
+    user_deno = Path.home() / ".deno" / "bin" / "deno.exe"
+    if user_deno.is_file():
+        return "deno", str(user_deno)
+
     codex_node = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "node" / "bin" / "node.exe"
     if codex_node.exists():
         return "node", str(codex_node)
@@ -650,7 +654,7 @@ def check_environment() -> list[str]:
     if js_runtime:
         messages.append(f"js runtime: {js_runtime[0]} at {js_runtime[1]}")
     else:
-        messages.append("js runtime: missing. YouTube may return 403. Install Deno or Node 22+.")
+        messages.append("js runtime: missing. YouTube may return 403. Install Deno or Node 22+, then restart the app.")
 
     return messages
 

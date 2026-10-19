@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 - 2026-10-19
+
+- Avoid native C++ builds during setup by omitting yt-dlp's optional Brotli dependency from core requirements.
+- Detect PyPI TLS and system-clock failures before pip installation and provide actionable repair guidance.
+- Offer an explicit WinGet installation path for Deno during interactive setup.
+- Detect Deno installed in the standard per-user location even when the current PATH is stale.
+- Add a temporary VBS loading status while the hidden launcher starts the GUI.
+- Improve runtime, setup and troubleshooting documentation and add regression coverage.
+
 ## 0.2.1 - 2026-10-10
 
 - Expose shared Album folders / One folder choices in Simple, Advanced and the artist browser, preserving saved preferences and queued-job snapshots.

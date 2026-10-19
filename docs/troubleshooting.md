@@ -6,6 +6,18 @@ Extract the whole zip, including `ytdlp_studio`, into a writable, permanent fold
 
 If Windows blocks downloaded scripts, inspect the files and allow them only if you trust their source. On managed computers, follow your administrator's policy rather than bypassing organizational controls. `Setup.cmd` supplies an execution policy for its own PowerShell process; it does not change the machine's policy.
 
+Setup installs yt-dlp without its optional Brotli package. Some new Python versions
+do not yet have a Windows Brotli wheel, which would make pip require Microsoft C++
+Build Tools on an otherwise clean system. yt-dlp continues to work without Brotli;
+the package is only an optional response-compression helper.
+
+Before installing packages, setup checks that PyPI can be reached over verified
+HTTPS. The check uses a Windows-compatible single-line Python probe. If setup
+reports that a certificate is not valid yet or is no longer valid,
+check Windows **Settings > Time & language > Date & time**, enable **Set time
+automatically**, confirm the time zone, and run `w32tm /resync` from an elevated
+Command Prompt. Do not work around this by disabling certificate verification.
+
 If script association prevents the silent VBS launcher opening, launch from PowerShell in the app folder:
 
 ```powershell
@@ -24,7 +36,7 @@ Startup error details are saved to `%APPDATA%\ytdlp-studio\startup-error.log`. R
 
 Setup installs a complete FFmpeg/ffprobe pair, downloading and verifying the Windows build when needed. Tools live under `.venv\tools\ffmpeg`; a complete pair from PATH is also supported. An FFmpeg-only fallback may convert audio but cannot perform SponsorBlock cutting.
 
-Run Setup.cmd again to repair dependencies or tools. For JavaScript challenge failures, install [Deno](https://docs.deno.com/runtime/getting_started/installation/) or [Node.js](https://nodejs.org/en/download), make it available on PATH and restart the app. The utility detects supported runtimes; setup does not install a system-wide JavaScript runtime for you.
+Run Setup.cmd again to repair dependencies or tools. At the end of an interactive setup, you can now choose to install Deno through WinGet (`DenoLand.Deno`). This is an explicit opt-in and may require a new terminal or app restart before the updated PATH is visible. The app also checks Deno's standard per-user installation path (`%USERPROFILE%\.deno\bin\deno.exe`). If WinGet is unavailable, install [Deno](https://docs.deno.com/runtime/getting_started/installation/) or [Node.js](https://nodejs.org/en/download) 22+, make it available on PATH and restart the app. The utility detects supported runtimes; it does not silently install system software.
 
 Use Details to inspect failed jobs. Service availability, removed media, access restrictions and backend changes can all cause errors. Previews and downloads are separate requests; a successful preview does not guarantee a successful download.
 

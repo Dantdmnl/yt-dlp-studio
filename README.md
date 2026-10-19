@@ -2,9 +2,9 @@
 
 A Windows utility for downloading music and video, reviewing Spotify artist releases, and optionally mirroring your library to a NAS. One queue, a simple default view, and advanced controls when you need them.
 
-Version: **0.2.1**. Distributed as a **source zip**, not a standalone executable.
+Version: **0.2.2**. Distributed as a **source zip**, not a standalone executable.
 
-**Release status:** private prerelease testing. Version 0.2.1 includes artist-queue, hidden-console and recovery fixes. The old 0.2.0 zip does not contain them. Backend availability and full-discography downloads still need real-world acceptance.
+**Release status:** private prerelease testing. Version 0.2.2 includes setup, JavaScript-runtime detection and launcher feedback improvements. Backend availability and full-discography downloads still need real-world acceptance.
 
 ## Get Started
 
@@ -15,7 +15,7 @@ Version: **0.2.1**. Distributed as a **source zip**, not a standalone executable
 
 Setup shows progress and waits before closing. Normal app launches do not leave a terminal open. No administrator privileges are normally needed.
 
-For YouTube, also have **Deno or Node.js** on PATH. Setup warns if neither is found; see [troubleshooting](docs/troubleshooting.md).
+For YouTube, also have **Deno or Node.js 22+** on PATH. Interactive setup can optionally install Deno through WinGet when neither is found; see [troubleshooting](docs/troubleshooting.md).
 
 ## Download Something
 

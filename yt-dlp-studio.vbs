@@ -54,11 +54,23 @@ End If
 
 command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & runScript & """"
 On Error Resume Next
-exitCode = shell.Run(command, 0, True)
+exitCode = shell.Run(command, 0, False)
 If Err.Number <> 0 Then
     MsgBox "Could not start the PowerShell launcher." & vbCrLf & vbCrLf & _
         Err.Description, vbCritical, "yt-dlp Studio"
     WScript.Quit 1
 End If
 On Error GoTo 0
+
+If exitCode = 0 Then
+    ShowStartupStatus
+End If
 WScript.Quit exitCode
+
+Sub ShowStartupStatus
+    Dim status
+    status = "yt-dlp Studio is starting..." & vbCrLf & vbCrLf & _
+        "Loading the interface and checking local tools." & vbCrLf & _
+        "This message closes automatically."
+    shell.Popup status, 5, "yt-dlp Studio", vbInformation
+End Sub

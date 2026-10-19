@@ -84,6 +84,23 @@ function Test-Venv {
     return Test-Python $venvPython
 }
 
+function Test-PackageIndex {
+    param([string]$Python)
+
+    Write-Detail "Checking secure access to PyPI"
+    $probeOutput = (& $Python -c "import urllib.request; urllib.request.urlopen('https://pypi.org/simple/pip/', timeout=15).close()" 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0) {
+        Write-Done "PyPI is reachable over a verified HTTPS connection"
+        return
+    }
+
+    if ($probeOutput -match "SSL_CERTIFICATE_ERROR|validity period|CERTIFICATE_VERIFY_FAILED") {
+        Stop-WithHelp "PyPI's HTTPS certificate could not be verified. Check that Windows Date & time and time zone are correct, enable Set time automatically, then run 'w32tm /resync' from an elevated Command Prompt and run setup again. Do not disable certificate verification."
+    }
+
+    Stop-WithHelp "PyPI could not be reached over HTTPS. Check your internet connection, proxy or firewall, then run setup again. Details: $probeOutput"
+}
+
 function Find-BasePython {
     $candidates = New-Object System.Collections.Generic.List[string]
 
@@ -133,6 +150,51 @@ function New-AppShortcut {
     $shortcut.WorkingDirectory = $PSScriptRoot
     $shortcut.Description = "Launch yt-dlp Studio"
     $shortcut.Save()
+}
+
+function Test-JavaScriptRuntime {
+    return (Get-Command deno, node, qjs -ErrorAction SilentlyContinue | Select-Object -First 1)
+}
+
+function Invoke-JavaScriptRuntimeSetup {
+    if (Test-JavaScriptRuntime) {
+        return
+    }
+
+    Write-Host ""
+    Write-Host "YouTube may need Deno or Node.js 22+ to avoid HTTP 403 responses." -ForegroundColor Yellow
+    if (-not $Interactive) {
+        Write-Host "Install Deno with WinGet, then restart the app:" -ForegroundColor Yellow
+        Write-Host "  winget install --id DenoLand.Deno --exact" -ForegroundColor Yellow
+        return
+    }
+
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        Write-Host "WinGet was not found. Install Deno or Node.js 22+ manually, then restart the app." -ForegroundColor Yellow
+        Write-Host "Deno: https://docs.deno.com/runtime/getting_started/installation/" -ForegroundColor Yellow
+        Write-Host "Node.js: https://nodejs.org/en/download" -ForegroundColor Yellow
+        return
+    }
+
+    $answer = Read-Host "Install Deno with WinGet now? [Y/n]"
+    if ($answer.Trim() -match "^(n|no)$") {
+        Write-Host "Skipped. Install Deno or Node.js 22+ later, then restart the app." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Detail "Installing Deno with WinGet"
+    & $winget.Source install --id DenoLand.Deno --exact --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithHelp "Deno installation through WinGet failed. Install Deno or Node.js 22+ manually, then run setup again."
+    }
+
+    if (Test-JavaScriptRuntime) {
+        Write-Done "JavaScript runtime is ready"
+    } else {
+        Write-Host "Deno was installed, but this PowerShell process has not received the updated PATH." -ForegroundColor Yellow
+        Write-Host "Restart the app (or open a new terminal) before downloading from YouTube." -ForegroundColor Yellow
+    }
 }
 
 try {
@@ -195,6 +257,8 @@ try {
     }
     Write-Done "Python executable is $venvPython"
 
+    Test-PackageIndex -Python $venvPython
+
     Write-Step "Installing Python packages"
     Write-Detail "Upgrading pip"
     & $venvPython -m pip install --upgrade pip
@@ -244,11 +308,7 @@ try {
     Write-Host "Start yt-dlp Studio from the Desktop/Start Menu shortcut, or double-click:" -ForegroundColor White
     Write-Host "  yt-dlp-studio.vbs" -ForegroundColor White
     Write-Host "Normal launches do not leave a terminal window open." -ForegroundColor DarkGray
-    if (-not (Get-Command deno -ErrorAction SilentlyContinue) -and -not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Host ""
-        Write-Host "YouTube may also need a JavaScript runtime. Install Deno or Node.js, then restart the app." -ForegroundColor Yellow
-        Write-Host "See docs\troubleshooting.md for details." -ForegroundColor Yellow
-    }
+    Invoke-JavaScriptRuntimeSetup
     if (-not $Shortcuts) {
         Write-Host ""
         Write-Host "Optional: run .\install.ps1 -Shortcuts to add Desktop and Start Menu shortcuts." -ForegroundColor DarkGray

@@ -27,6 +27,15 @@ class UtilityTests(unittest.TestCase):
         self.assertEqual(app.provider_for("https://example.com/open.spotify.com", self.settings), "yt-dlp")
         self.assertEqual(app.provider_for("https://open.spotify.com.example.com/track/id", self.settings), "yt-dlp")
 
+    @patch.object(app.shutil, "which", return_value=None)
+    @patch.object(app.Path, "home")
+    def test_finds_deno_in_standard_user_install_path(self, home, _):
+        deno = self.root / ".deno" / "bin" / "deno.exe"
+        deno.parent.mkdir(parents=True)
+        deno.touch()
+        home.return_value = self.root
+        self.assertEqual(app.find_js_runtime(), ("deno", str(deno)))
+
     def test_legacy_polluted_mirror_path_is_recovered(self):
         settings = app.Settings(output_dir="D:/Music/Artist", sync_dir="G:/Multimedia/Music/A/Music/Artist")
         settings = app.normalize_settings(settings)
