@@ -6,6 +6,20 @@ Version: **0.2.2**. Distributed as a **source zip**, not a standalone executable
 
 **Release status:** private prerelease testing. Version 0.2.2 includes setup, JavaScript-runtime detection and launcher feedback improvements. Backend availability and full-discography downloads still need real-world acceptance.
 
+## See It In Action
+
+The Simple view keeps the common paste, preview and download flow visible at a
+glance. Advanced mode exposes detailed format, library, sync, cleanup and
+diagnostic controls without changing the same download queue.
+
+### Simple View
+
+![yt-dlp Studio Simple view](docs/gui-simple.png)
+
+### Advanced View
+
+![yt-dlp Studio Advanced view](docs/gui-advanced.png)
+
 ## Get Started
 
 1. Install **Python 3.10 or newer** for Windows (64-bit).

@@ -59,6 +59,7 @@ def release_files(root: Path) -> list[Path]:
     files = [root / name for name in RUNTIME_FILES]
     files += sorted((root / "ytdlp_studio").glob("*.py"))
     files += sorted((root / "docs").glob("*.md"))
+    files += sorted((root / "docs").glob("*.png"))
     required = {root / "ytdlp_studio" / name for name in
                 ("__init__.py", "__main__.py", "version.py", "cli.py", "gui.py", "backend.py",
                  "catalogue.py", "browser.py", "inspection.py", "formats.py", "media_tools.py", "processes.py", "download_host.py", "library.py")}
